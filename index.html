@@ -420,12 +420,6 @@ function getChallengeEnd(ch) {
 }
 
 
-let toastTimeout;
-function showToast(msg) {
-  const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
-  clearTimeout(toastTimeout); toastTimeout = setTimeout(()=>el.classList.remove('show'), 2000);
-}
-
 // ===== TODAY =====
 function getEntry(habitId) {
   return (progressData[habitId] || {})[dateStr(currentDate)] || 0;
