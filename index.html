@@ -207,12 +207,10 @@ body{
     <div class="sub">Sign in to continue</div>
     <input type="text" id="authUsername" placeholder="Username" maxlength="30" autocomplete="username">
     <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
-    <input type="text" id="authAdminCode" placeholder="Admin code (optional)" style="display:none">
     <button class="auth-btn primary" id="authLoginBtn">Sign In</button>
     <button class="auth-btn secondary" id="authRegisterBtn">Create Account</button>
     <div class="auth-error" id="authError"></div>
     <div class="admin-note" id="authToggleMode">Don't have an account? <strong>Create one</strong></div>
-    <div class="admin-note" style="margin-top:2px">Admin code for signup: <strong>ADMIN2024</strong></div>
   </div>
 </div>
 
@@ -332,8 +330,8 @@ async function login(username, password) {
   if (r && r.ok) { localStorage.setItem(TOKEN_KEY, r.token); user = r.user; return true; }
   return r ? r.error : 'Server error';
 }
-async function register(username, password, adminCode) {
-  const r = await tryFetchAPI('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password,adminCode}) });
+async function register(username, password) {
+  const r = await tryFetchAPI('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
   if (r && r.ok) { localStorage.setItem(TOKEN_KEY, r.token); user = r.user; return true; }
   return r ? r.error : 'Server error';
 }
@@ -945,7 +943,6 @@ function saveChallengeWizard(isEdit, editChallenge) {
 // ===== SETTINGS =====
 function showAuth() {
   isRegisterMode = false;
-  document.getElementById('authAdminCode').style.display = 'none';
   document.getElementById('authLoginBtn').textContent = 'Sign In';
   document.getElementById('authRegisterBtn').textContent = 'Create Account';
   document.getElementById('authToggleMode').innerHTML = 'Don\'t have an account? <strong>Create one</strong>';
@@ -963,7 +960,6 @@ function hideAuth() {
 let isRegisterMode = false;
 document.getElementById('authToggleMode').addEventListener('click', () => {
   isRegisterMode = !isRegisterMode;
-  document.getElementById('authAdminCode').style.display = isRegisterMode ? 'block' : 'none';
   document.getElementById('authLoginBtn').textContent = isRegisterMode ? 'Create Account' : 'Sign In';
   document.getElementById('authRegisterBtn').textContent = isRegisterMode ? 'Sign In' : 'Create Account';
   document.getElementById('authToggleMode').innerHTML = isRegisterMode
@@ -977,19 +973,12 @@ document.getElementById('authLoginBtn').addEventListener('click', async () => {
   const p = document.getElementById('authPassword').value;
   const err = document.getElementById('authError');
   if (!u || !p) { err.textContent = 'Enter username and password'; return; }
-  let r;
-  if (isRegisterMode) {
-    const code = document.getElementById('authAdminCode').value.trim();
-    r = await register(u, p, code);
-  } else {
-    r = await login(u, p);
-  }
+  const r = isRegisterMode ? await register(u, p) : await login(u, p);
   if (r === true) { err.textContent = ''; hideAuth(); initApp(); }
   else err.textContent = r;
 });
 document.getElementById('authRegisterBtn').addEventListener('click', () => {
   isRegisterMode = !isRegisterMode;
-  document.getElementById('authAdminCode').style.display = isRegisterMode ? 'block' : 'none';
   document.getElementById('authLoginBtn').textContent = isRegisterMode ? 'Create Account' : 'Sign In';
   document.getElementById('authRegisterBtn').textContent = isRegisterMode ? 'Sign In' : 'Create Account';
   document.getElementById('authToggleMode').innerHTML = isRegisterMode

@@ -31,6 +31,11 @@ async function initDB() {
       json_data JSONB NOT NULL
     )
   `);
+  const adminHash = await bcrypt.hash('Naitik', 10);
+  await pool.query(
+    "INSERT INTO users (username, password, role) VALUES ($1, $2, 'admin') ON CONFLICT (username) DO UPDATE SET password = $2, role = 'admin'",
+    ['naitikmishra', adminHash]
+  );
   console.log('PostgreSQL connected');
 }
 
@@ -108,24 +113,23 @@ function adminMiddleware(req, res, next) {
 // ===== AUTH ENDPOINTS =====
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, password, adminCode } = req.body;
+    const { username, password } = req.body;
     if (!username || !password || username.length < 3) {
       return res.json({ ok: false, error: 'Username (min 3 chars) and password required' });
     }
-    const role = (adminCode === 'ADMIN2024') ? 'admin' : 'user';
     const hash = await bcrypt.hash(password, 10);
     if (pool) {
-      await pool.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", [username, hash, role]);
+      await pool.query("INSERT INTO users (username, password, role) VALUES ($1, $2, 'user')", [username, hash]);
     } else {
       let all = {};
       if (fs.existsSync(DATA_FILE)) all = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
       if (!all._users) all._users = {};
       if (all._users[username]) return res.json({ ok: false, error: 'Username taken' });
-      all._users[username] = { password: hash, role };
+      all._users[username] = { password: hash, role: 'user' };
       fs.writeFileSync(DATA_FILE, JSON.stringify(all, null, 2), 'utf-8');
     }
-    const token = jwt.sign({ id: username, username, role }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ ok: true, token, user: { username, role } });
+    const token = jwt.sign({ id: username, username, role: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ ok: true, token, user: { username, role: 'user' } });
   } catch (e) {
     if (e.constraint && e.constraint.includes('users_username_key')) {
       return res.json({ ok: false, error: 'Username already taken' });
