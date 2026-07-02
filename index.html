@@ -500,7 +500,7 @@ function renderToday() {
 
   container.innerHTML = html;
 
-  const dayNum = daysBetween(challenge.startDate, dateStr(currentDate));
+  const dayNum = daysBetween(parseDate(challenge.startDate), currentDate);
   const dl = document.getElementById('tdDayLabel');
   if (dl) dl.textContent = `Day ${dayNum}`;
 
@@ -653,7 +653,7 @@ function renderDashboard() {
   const startDate = challenge.startDate;
   const challengeDays = challenge.days;
   const today = todayStr();
-  const daysSinceStart = Math.max(1, daysBetween(startDate, today));
+  const daysSinceStart = Math.max(1, daysBetween(parseDate(startDate), new Date()));
 
   let grandEarned = 0, grandMax = 0;
   let habitStats = habits.map(h => {
