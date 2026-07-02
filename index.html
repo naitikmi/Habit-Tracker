@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Challenge Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a14;--card:#151528;--card2:#1e1e38;
+  --accent:#7c5cfc;--accent-glow:#7c5cfc40;
+  --green:#2ecc71;--green-dim:#2ecc7120;
+  --red:#e74c3c;--amber:#f39c12;
+  --text:#eeeef4;--text2:#8888aa;--text3:#55557a;
+  --radius:16px;--radius-sm:10px;
+  --shadow:0 8px 32px rgba(0,0,0,.4)
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;
+  padding-bottom:80px;-webkit-tap-highlight-color:transparent
+}
+.container{max-width:480px;margin:0 auto;padding:12px 14px}
+
+.header{display:flex;justify-content:space-between;align-items:center;padding:16px 0 10px}
+.header h1{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--accent),#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.3px}
+.header .sub{font-size:11px;color:var(--text3);margin-top:1px;-webkit-text-fill-color:var(--text3)}
+.header-right{display:flex;align-items:center;gap:10px}
+
+.sync-status{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:var(--text3);padding:3px 7px;border-radius:20px;background:var(--card2);font-weight:600}
+.sync-status .dot{width:5px;height:5px;border-radius:50%}
+.sync-status .dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+.sync-status .dot.off{background:var(--text3)}
+
+.tabs{display:flex;gap:3px;background:var(--card);border-radius:var(--radius);padding:3px;margin-bottom:14px}
+.tab{flex:1;padding:9px 4px;text-align:center;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:600;border-radius:13px;cursor:pointer;transition:.25s}
+.tab.active{background:var(--accent);color:#fff;box-shadow:0 2px 12px var(--accent-glow)}
+.tab:active{transform:scale(.95)}
+
+.page{display:none}.page.active{display:block}
+
+/* Challenge selector */
+.challenge-selector{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px}
+.challenge-selector select{flex:1;padding:8px 10px;border:2px solid var(--card2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px;font-weight:600;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer}
+.challenge-selector select:focus{border-color:var(--accent)}
+.challenge-selector .cs-label{font-size:11px;color:var(--text2);font-weight:500;white-space:nowrap}
+
+/* Score */
+.score-card{background:var(--card);border-radius:var(--radius);padding:16px;display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.score-ring-wrap{flex-shrink:0;position:relative;width:64px;height:64px}
+.score-ring-wrap svg{width:64px;height:64px;transform:rotate(-90deg)}
+.score-ring-wrap .ring-bg{fill:none;stroke:var(--card2);stroke-width:6}
+.score-ring-wrap .ring-fg{fill:none;stroke:var(--accent);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1)}
+.score-ring-wrap .pct-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--text)}
+.score-info{flex:1}
+.score-info .score-main{font-size:15px;font-weight:700}
+.score-info .score-main .num{color:var(--accent)}
+.score-info .score-pts{font-size:12px;color:var(--text2);margin-top:2px}
+.score-info .score-pts .pts-val{color:var(--accent);font-weight:700}
+.score-bar{height:5px;background:var(--card2);border-radius:5px;margin-top:7px;overflow:hidden}
+.score-bar .fill{height:100%;background:linear-gradient(90deg,var(--accent),#a78bfa);border-radius:5px;transition:width .6s ease}
+
+.date-nav{display:flex;align-items:center;justify-content:space-between;background:var(--card);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px}
+.date-nav .date-label{font-size:12px;font-weight:600;color:var(--text2)}
+.date-nav .btn-nav{background:transparent;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 6px;transition:.15s}
+.date-nav .btn-nav:active{color:var(--accent);transform:scale(.85)}
+.date-nav .challenge-tag{font-size:10px;color:var(--text3);background:var(--card2);padding:2px 8px;border-radius:10px}
+
+/* Checklist */
+.checklist{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.check-item{background:var(--card);border-radius:var(--radius);padding:10px 12px 10px 6px;display:flex;align-items:center;gap:10px;transition:.2s;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+.check-item .check-box{flex-shrink:0;width:34px;height:34px;border-radius:50%;border:2.5px solid var(--text3);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.25s;font-size:15px;color:transparent}
+.check-item .check-box:active{transform:scale(.88)}
+.check-item .check-box.done{border-color:var(--green);background:var(--green);color:#fff;box-shadow:0 0 14px var(--green-dim)}
+.check-item .ci-info{flex:1;min-width:0}
+.check-item .ci-info .ci-name{font-size:14px;font-weight:600;transition:.2s}
+.check-item .check-box.done~.ci-info .ci-name{color:var(--text2)}
+.check-item .ci-info .ci-sub{font-size:10px;color:var(--text3);margin-top:1px}
+.check-item .ci-right{text-align:right;flex-shrink:0}
+.check-item .ci-right .ci-pts{font-size:14px;font-weight:700}
+.check-item .ci-right .ci-pts.earned{color:var(--green)}
+.check-item .ci-right .ci-pts.zero{color:var(--text3)}
+.check-item .ci-right .ci-max{font-size:10px;color:var(--text3)}
+
+.empty-state{text-align:center;padding:50px 20px}
+.empty-state p{color:var(--text3);font-size:13px}
+
+/* Dashboard */
+.dash-summary{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:10px}
+.dash-summary .dash-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.dash-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+.dash-row .dash-val{font-size:20px;font-weight:800}
+.dash-row .dash-val .accent{color:var(--accent)}
+.dash-row .dash-label{font-size:11px;color:var(--text3)}
+.dash-bar{height:5px;background:var(--card2);border-radius:5px;margin:6px 0;overflow:hidden}
+.dash-bar .fill{height:100%;background:linear-gradient(90deg,var(--accent),#a78bfa);border-radius:5px;transition:width .6s ease}
+.dash-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.dash-habit{background:var(--card);border-radius:var(--radius);padding:10px 12px;display:flex;align-items:center;gap:8px}
+.dash-habit-color{width:4px;height:32px;border-radius:4px;flex-shrink:0}
+.dash-habit-info{flex:1;min-width:0}
+.dash-habit-info .dh-name{font-size:12px;font-weight:600}
+.dash-habit-info .dh-sub{font-size:9px;color:var(--text3);margin-top:1px}
+.dash-habit-right{text-align:right;flex-shrink:0}
+.dash-habit-right .dh-pct{font-size:14px;font-weight:800}
+.dash-habit-right .dh-frac{font-size:9px;color:var(--text3)}
+.dash-habit-bar{height:3px;background:var(--card2);border-radius:3px;margin-top:4px;overflow:hidden}
+.dash-habit-bar .fill{height:100%;border-radius:3px;transition:width .6s ease}
+.dash-highlight{display:flex;gap:6px;margin-bottom:10px}
+.dash-highlight .hl-card{flex:1;background:var(--card);border-radius:var(--radius);padding:10px 8px;text-align:center}
+.dash-highlight .hl-card .hl-icon{font-size:16px;margin-bottom:1px}
+.dash-highlight .hl-card .hl-name{font-size:9px;color:var(--text3);font-weight:500}
+.dash-highlight .hl-card .hl-val{font-size:12px;font-weight:700;margin-top:1px}
+
+/* Charts */
+.chart-section{margin-bottom:14px}
+.chart-section h3{font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text2)}
+.chart-box{background:var(--card);border-radius:var(--radius);padding:12px}
+.chart-period{display:flex;gap:4px;margin-bottom:8px}
+.chart-period .btn-period{padding:3px 10px;border:1px solid var(--card2);border-radius:20px;background:transparent;color:var(--text2);font-size:10px;cursor:pointer;font-weight:600;transition:.2s}
+.chart-period .btn-period.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.chart-wrap{position:relative;height:180px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:4px}
+.calendar-grid .day-label{text-align:center;font-size:8px;color:var(--text3);padding:2px 0;font-weight:600}
+.calendar-grid .day-cell{aspect-ratio:1;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text3);background:var(--card2);cursor:pointer;transition:.1s}
+.calendar-grid .day-cell.today{outline:2px solid var(--accent);outline-offset:-2px}
+.calendar-grid .day-cell.dim{opacity:.25}
+
+/* Settings */
+.wizard{background:var(--card);border-radius:var(--radius);padding:20px;margin-bottom:10px}
+.wizard h2{font-size:17px;font-weight:700;margin-bottom:14px}
+.wizard label{display:block;font-size:11px;color:var(--text2);font-weight:600;margin-bottom:4px;margin-top:10px}
+.wizard label:first-of-type{margin-top:0}
+.wizard input[type=text],.wizard input[type=number],.wizard input[type=date]{width:100%;padding:10px 12px;border:2px solid var(--card2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px;outline:none}
+.wizard input:focus{border-color:var(--accent)}
+.wizard .wizard-habits{margin-top:12px}
+.wizard .wizard-habits .wh-title{font-size:11px;color:var(--text2);font-weight:600;margin-bottom:6px}
+.wizard .wh-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.wizard .wh-row input[type=text]{flex:1}
+.wizard .wh-row input[type=number]{width:60px;flex-shrink:0}
+.wizard .wh-row .btn-wh-del{width:30px;height:30px;border:none;border-radius:50%;background:var(--red-dim);color:var(--red);font-size:14px;cursor:pointer;flex-shrink:0}
+.wizard .btn-wh-add{width:100%;padding:8px;border:1px dashed var(--accent-glow);background:transparent;border-radius:var(--radius-sm);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;margin-top:4px}
+.btn-wiz-save{width:100%;padding:12px;border:none;border-radius:var(--radius-sm);background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:14px}
+.btn-wiz-save:active{opacity:.85}
+
+.setting-row{background:var(--card);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px}
+.setting-row .label{font-size:13px;font-weight:500}
+.setting-row .desc{font-size:10px;color:var(--text3);margin-top:1px}
+.setting-row .challenge-info{flex:1}
+.setting-row .challenge-info .ci-title{font-size:14px;font-weight:600}
+.setting-row .challenge-info .ci-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.btn-secondary{padding:8px 14px;border:none;border-radius:var(--radius-sm);background:var(--card2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:.15s}
+.btn-secondary:active{opacity:.7}
+.btn-danger{padding:8px 14px;border:none;border-radius:var(--radius-sm);background:var(--red);color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.btn-danger:active{opacity:.8}
+.challenge-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.challenge-card{background:var(--card);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:.15s;border:2px solid transparent}
+.challenge-card:active{opacity:.8}
+.challenge-card.active{border-color:var(--accent)}
+.challenge-card .cc-info{flex:1}
+.challenge-card .cc-info .cc-name{font-size:13px;font-weight:600}
+.challenge-card .cc-info .cc-sub{font-size:10px;color:var(--text3);margin-top:1px}
+.challenge-card .cc-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--text3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;color:transparent}
+.challenge-card.active .cc-check{border-color:var(--accent);background:var(--accent);color:#fff}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--card2);display:flex;z-index:50;padding:4px 0 env(safe-area-inset-bottom)}
+.bottom-nav .nav-item{flex:1;padding:7px 4px;text-align:center;border:none;background:transparent;color:var(--text3);cursor:pointer;transition:.15s;font-size:10px;font-weight:500}
+.bottom-nav .nav-item .nav-icon{font-size:17px;display:block;margin-bottom:1px}
+.bottom-nav .nav-item.active{color:var(--accent)}
+.bottom-nav .nav-item:active{transform:scale(.9)}
+
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--card);color:var(--text);padding:10px 20px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;box-shadow:var(--shadow);z-index:100;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+
+@media(max-width:400px){
+  .container{padding:8px 10px}
+  .score-ring-wrap{width:54px;height:54px}
+  .score-ring-wrap svg{width:54px;height:54px}
+  .score-ring-wrap .pct-text{font-size:13px}
+  .chart-wrap{height:150px}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Challenge Tracker</h1>
+      <div class="sub" id="todayLabel"></div>
+    </div>
+    <div class="header-right">
+      <div class="sync-status" id="syncStatus">
+        <span class="dot off" id="syncDot"></span>
+        <span id="syncLabel">Local</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs" id="viewTabs">
+    <button class="tab active" data-page="today">Today</button>
+    <button class="tab" data-page="dashboard">Stats</button>
+    <button class="tab" data-page="charts">Charts</button>
+    <button class="tab" data-page="settings">Settings</button>
+  </div>
+
+  <!-- TODAY -->
+  <div class="page active" id="page-today">
+    <div id="todayContent"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page" id="page-dashboard">
+    <div class="dash-summary" id="dashOverall">
+      <div class="dash-title">Overall Progress</div>
+      <div class="dash-row">
+        <span class="dash-val"><span class="accent" id="dashTotalEarned">0</span> / <span id="dashTotalPossible">0</span></span>
+        <span class="dash-label">points earned</span>
+      </div>
+      <div class="dash-bar"><div class="fill" id="dashOverallBar"></div></div>
+      <div class="dash-row" style="margin-top:1px">
+        <span style="font-size:22px;font-weight:800" id="dashOverallPct">0%</span>
+        <span class="dash-label">overall completion</span>
+      </div>
+    </div>
+    <div class="dash-summary">
+      <div class="dash-title">Challenge Progress</div>
+      <div class="dash-row">
+        <span class="dash-val"><span class="accent" id="dashChallengeDay">0</span> / <span id="dashChallengeTotal">0</span></span>
+        <span class="dash-label">days done</span>
+      </div>
+      <div class="dash-bar"><div class="fill" id="dashChallengeBar"></div></div>
+      <div class="dash-row" style="margin-top:1px">
+        <span style="font-size:14px;font-weight:700" id="dashChallengePct">0%</span>
+        <span class="dash-label">of challenge</span>
+      </div>
+    </div>
+    <div class="dash-highlight" id="dashHighlights"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Habit Breakdown</div>
+    <div class="dash-grid" id="dashHabitGrid"></div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="page" id="page-charts">
+    <div class="chart-section">
+      <h3>Points Earned</h3>
+      <div class="chart-box">
+        <div class="chart-period">
+          <button class="btn-period active" data-period="daily">Daily</button>
+          <button class="btn-period" data-period="weekly">Weekly</button>
+          <button class="btn-period" data-period="monthly">Monthly</button>
+        </div>
+        <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-section">
+      <h3>Calendar</h3>
+      <div class="chart-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <button class="btn-nav" id="calPrev" style="background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:2px 6px">&#9664;</button>
+          <span id="calTitle" style="font-size:11px;font-weight:600"></span>
+          <button class="btn-nav" id="calNext" style="background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:2px 6px">&#9654;</button>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div id="settingsContent"></div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <button class="nav-item active" data-page="today"><span class="nav-icon">&#9776;</span> Today</button>
+  <button class="nav-item" data-page="dashboard"><span class="nav-icon">&#128200;</span> Stats</button>
+  <button class="nav-item" data-page="charts"><span class="nav-icon">&#128202;</span> Charts</button>
+  <button class="nav-item" data-page="settings"><span class="nav-icon">&#9881;</span> Settings</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_PATH = '/api/data';
+const LS_KEY = 'challengeTracker';
+const COLORS = ['#7c5cfc','#2ecc71','#e74c3c','#f39c12','#3498db','#e91e63','#00bcd4','#ff9800','#9c27b0','#4caf50'];
+let isServerConnected = false, syncTimer = null;
+let mainChart = null, currentPeriod = 'daily', calDate = new Date(), currentDate = new Date();
+
+function getDefaultData() {
+  return { challenges: [], activeChallengeId: null, nextChallengeId: 1 };
+}
+let data = getDefaultData();
+
+// ===== PERSISTENCE =====
+async function tryFetchAPI(path, opts) {
+  try {
+    const c = new AbortController(); const id = setTimeout(() => c.abort(), 3000);
+    const r = await fetch(path, { ...opts, signal: c.signal }); clearTimeout(id);
+    if (!r.ok) return null; return await r.json();
+  } catch(e) { return null; }
+}
+async function loadFromServer() {
+  const r = await tryFetchAPI(API_PATH);
+  if (r && r.ok && r.data) return r.data;
+  return null;
+}
+async function saveToServer(d) {
+  const r = await tryFetchAPI(API_PATH, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) });
+  return r && r.ok;
+}
+async function initData() {
+  const s = await loadFromServer();
+  if (s) { data = s; isServerConnected = true; }
+  else {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) { try { const p = JSON.parse(raw); if (p) data = p; } catch(e) {} }
+    isServerConnected = false;
+  }
+  migrateData(); updateSyncStatus(); renderAll();
+}
+function migrateData() {
+  // Convert single-challenge old format -> multi-challenge
+  if (data.challenge && !data.challenges) {
+    const old = data.challenge;
+    const habs = (data.habits || []).map((h,i) => {
+      if (!h.entries) h.entries = {};
+      if (!h.maxPoints) h.maxPoints = 10;
+      return h;
+    });
+    data.challenges = [{ id: 1, name: old.name || 'My Challenge', days: old.days || 21, startDate: old.startDate || dateStr(new Date()), habits: habs, nextHabitId: (habs.length || 0) + 1 }];
+    data.activeChallengeId = 1;
+    data.nextChallengeId = 2;
+    delete data.challenge; delete data.habits;
+  }
+  // Ensure all challenges have proper structure
+  if (data.challenges) {
+    data.challenges.forEach(c => {
+      if (!c.habits) c.habits = [];
+      if (!c.nextHabitId) c.nextHabitId = (c.habits.length || 0) + 1;
+      c.habits.forEach(h => { if (!h.entries) h.entries = {}; if (!h.maxPoints) h.maxPoints = 10; });
+    });
+    if (!data.nextChallengeId) data.nextChallengeId = (data.challenges.length || 0) + 1;
+  }
+}
+async function persistData() {
+  localStorage.setItem(LS_KEY, JSON.stringify(data));
+  if (isServerConnected) { const ok = await saveToServer(data); if (!ok) { isServerConnected = false; updateSyncStatus(); } }
+  updateSyncStatus();
+}
+async function checkServer() {
+  const r = await tryFetchAPI(API_PATH); const was = isServerConnected;
+  isServerConnected = !!(r && r.ok);
+  if (isServerConnected && !was) {
+    const s = await loadFromServer();
+    if (s) { if (!localStorage.getItem(LS_KEY)) { data = s; migrateData(); renderAll(); } else await saveToServer(data); }
+    else await saveToServer(data);
+  }
+  updateSyncStatus();
+}
+function updateSyncStatus() {
+  const d = document.getElementById('syncDot'), l = document.getElementById('syncLabel');
+  if (isServerConnected) { d.className = 'dot on'; l.textContent = 'Saved'; } else { d.className = 'dot off'; l.textContent = 'Local'; }
+}
+function saveData() { persistData(); }
+
+// ===== HELPERS =====
+function getActiveChallenge() {
+  if (!data.challenges || !data.activeChallengeId) return null;
+  return data.challenges.find(c => c.id === data.activeChallengeId) || null;
+}
+function getActiveHabits() {
+  const c = getActiveChallenge();
+  return c ? c.habits : [];
+}
+function dateStr(d) { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+function parseDate(s) { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function todayStr() { return dateStr(new Date()); }
+function daysBetween(a,b) { return Math.round((parseDate(dateStr(b))-parseDate(dateStr(a)))/86400000)+1; }
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function getChallengeEnd(ch) {
+  if (!ch) return null;
+  const d = parseDate(ch.startDate);
+  d.setDate(d.getDate() + ch.days - 1);
+  return d;
+}
+function calcStreak(habitId, habits) {
+  const h = habits.find(x => x.id === habitId);
+  if (!h) return 0;
+  let streak = 0;
+  const d = new Date();
+  while (true) {
+    const s = dateStr(d);
+    if ((h.entries[s] || 0) > 0) { streak++; d.setDate(d.getDate()-1); }
+    else break;
+  }
+  return streak;
+}
+
+let toastTimeout;
+function showToast(msg) {
+  const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimeout); toastTimeout = setTimeout(()=>el.classList.remove('show'), 2000);
+}
+
+// ===== TODAY =====
+function renderToday() {
+  const container = document.getElementById('todayContent');
+  const challenge = getActiveChallenge();
+  const habits = getActiveHabits();
+
+  if (!challenge || !habits.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:60px 20px">
+      <p style="font-size:14px;margin-bottom:6px">No active challenge</p>
+      <p style="font-size:12px;color:var(--text2)">Go to <strong>Settings</strong> to create one</p>
+    </div>`;
+    return;
+  }
+
+  const ds = dateStr(currentDate);
+  const start = parseDate(challenge.startDate);
+  const end = getChallengeEnd(challenge);
+  const isBefore = currentDate < start && dateStr(currentDate) !== dateStr(start);
+
+  let html = `<div class="challenge-selector">
+    <span class="cs-label">Challenge:</span>
+    <select id="challengeSelect">`;
+  data.challenges.forEach(c => {
+    html += `<option value="${c.id}" ${c.id === data.activeChallengeId ? 'selected' : ''}>${escHtml(c.name)}</option>`;
+  });
+  html += `</select></div>`;
+
+  html += `<div class="date-nav">
+    <button class="btn-nav" id="tdPrevDay">&#9664;</button>
+    <span class="date-label" id="tdDateLabel">${formatDateNice(currentDate)}</span>
+    <span class="challenge-tag" id="tdDayLabel"></span>
+    <button class="btn-nav" id="tdNextDay">&#9654;</button>
+  </div>`;
+
+  if (isBefore) {
+    html += `<div class="empty-state"><p>Challenge starts ${formatDateNice(start)}</p></div>`;
+    container.innerHTML = html;
+    bindTodayEvents(challenge);
+    return;
+  }
+
+  const totalMax = habits.reduce((s, h) => s + (h.maxPoints || 10), 0);
+  let ptsEarned = 0, doneCount = 0;
+  habits.forEach(h => {
+    if ((h.entries[ds] || 0) > 0) { doneCount++; ptsEarned += (h.maxPoints || 10); }
+  });
+  const pct = totalMax ? Math.round((ptsEarned / totalMax) * 100) : 0;
+  const offset = 188.5 - (pct/100) * 188.5;
+
+  html += `<div class="score-card">
+    <div class="score-ring-wrap">
+      <svg viewBox="0 0 72 72">
+        <circle class="ring-bg" cx="36" cy="36" r="30"/>
+        <circle class="ring-fg" cx="36" cy="36" r="30" stroke-dasharray="188.5" stroke-dashoffset="${offset}"/>
+      </svg>
+      <div class="pct-text">${pct}%</div>
+    </div>
+    <div class="score-info">
+      <div class="score-main"><span class="num">${doneCount}</span> / ${habits.length} done</div>
+      <div class="score-pts">Points: <span class="pts-val">${ptsEarned}</span> / ${totalMax} &middot; ${pct}%</div>
+      <div class="score-bar"><div class="fill" style="width:${pct}%"></div></div>
+    </div>
+  </div>`;
+
+  html += `<div class="dash-summary">
+    <div class="dash-title">Today's Points</div>
+    <div class="dash-row">
+      <span class="dash-val"><span class="accent">${ptsEarned}</span> / ${totalMax}</span>
+      <span class="dash-label">points earned</span>
+    </div>
+    <div class="dash-bar"><div class="fill" style="width:${pct}%"></div></div>
+  </div>`;
+
+  html += `<div class="checklist">`;
+  habits.forEach(h => {
+    const checked = (h.entries[ds] || 0) > 0;
+    const pts = checked ? (h.maxPoints || 10) : 0;
+    html += `<div class="check-item" data-id="${h.id}">
+      <button class="check-box${checked?' done':''}" data-id="${h.id}">${checked?'✓':''}</button>
+      <div class="ci-info">
+        <div class="ci-name" style="color:${checked?'var(--text2)':'var(--text)'}">${escHtml(h.name)}</div>
+        <div class="ci-sub">${checked?'✓ done':'— pending'}</div>
+      </div>
+      <div class="ci-right">
+        <div class="ci-pts ${checked?'earned':'zero'}">+${pts}</div>
+        <div class="ci-max">/ ${h.maxPoints||10}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  container.innerHTML = html;
+
+  const dayNum = daysBetween(challenge.startDate, dateStr(currentDate));
+  const dl = document.getElementById('tdDayLabel');
+  if (dl) dl.textContent = `Day ${dayNum}`;
+
+  bindTodayEvents(challenge);
+}
+
+function toggleHabitById(id, challenge) {
+  const h = challenge.habits.find(x => x.id === id);
+  if (!h) return;
+  const ds = dateStr(currentDate);
+  h.entries[ds] = (h.entries[ds] || 0) > 0 ? 0 : 1;
+  saveData(); renderToday();
+}
+
+function bindTodayEvents(challenge) {
+  document.querySelectorAll('.check-box').forEach(b => {
+    b.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleHabitById(Number(this.dataset.id), challenge);
+    });
+  });
+  document.querySelectorAll('.check-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+      if (e.target.closest('.check-box')) return;
+      toggleHabitById(Number(this.dataset.id), challenge);
+    });
+  });
+  const prev = document.getElementById('tdPrevDay');
+  const next = document.getElementById('tdNextDay');
+  if (prev) prev.addEventListener('click', ()=>{ currentDate.setDate(currentDate.getDate()-1); renderToday(); });
+  if (next) next.addEventListener('click', ()=>{ currentDate.setDate(currentDate.getDate()+1); renderToday(); });
+  const sel = document.getElementById('challengeSelect');
+  if (sel) sel.addEventListener('change', function() {
+    data.activeChallengeId = Number(this.value);
+    currentDate = new Date();
+    saveData(); renderToday();
+  });
+}
+
+function formatDateNice(d) {
+  const t = new Date(); const ds = dateStr(d); const ts = dateStr(t);
+  if (ds === ts) return 'Today';
+  const y = new Date(t); y.setDate(y.getDate()-1); if (ds === dateStr(y)) return 'Yesterday';
+  const tom = new Date(t); tom.setDate(tom.getDate()+1); if (ds === dateStr(tom)) return 'Tomorrow';
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:d.getFullYear()!==t.getFullYear()?'numeric':undefined});
+}
+
+// ===== WIZARD HELPERS =====
+function renderChallengeWizard(container, editChallenge) {
+  const isEdit = !!editChallenge;
+  container.innerHTML = `<div class="wizard">
+    <h2>${isEdit ? 'Edit Challenge' : 'Create Your Challenge'}</h2>
+    <label>Challenge Name</label>
+    <input type="text" id="wizName" value="${isEdit ? escHtml(editChallenge.name) : 'My 30-Day Challenge'}" maxlength="50">
+    <label>Duration (days)</label>
+    <input type="number" id="wizDays" value="${isEdit ? editChallenge.days : 30}" min="1" max="999">
+    <label>Start Date</label>
+    <input type="date" id="wizStart" value="${isEdit ? editChallenge.startDate : todayStr()}">
+    <div class="wizard-habits">
+      <div class="wh-title">Habits</div>
+      <div id="wizHabitList"></div>
+      <button class="btn-wh-add" id="wizAddHabit">+ Add Habit</button>
+    </div>
+    <button class="btn-wiz-save" id="wizSave">${isEdit ? 'Save Changes' : 'Start Challenge'}</button>
+  </div>`;
+
+  if (isEdit) {
+    editChallenge.habits.forEach(h => addWizHabitRow(h.name, h.maxPoints));
+  }
+  if (!isEdit || !editChallenge.habits.length) {
+    addWizHabitRow(); addWizHabitRow(); addWizHabitRow();
+  }
+
+  document.getElementById('wizAddHabit').addEventListener('click', ()=>addWizHabitRow());
+  document.getElementById('wizSave').addEventListener('click', ()=>saveChallengeWizard(isEdit, editChallenge));
+}
+
+function addWizHabitRow(name, pts) {
+  const list = document.getElementById('wizHabitList');
+  const div = document.createElement('div'); div.className = 'wh-row';
+  div.innerHTML = `
+    <input type="text" placeholder="Habit name" class="wiz-hname" value="${escHtml(name||'')}" maxlength="40">
+    <input type="number" class="wiz-hpts" value="${pts||10}" min="1" max="999">
+    <button class="btn-wh-del">&#10005;</button>
+  `;
+  div.querySelector('.btn-wh-del').addEventListener('click', ()=>{
+    if (list.children.length > 1) div.remove();
+    else showToast('Need at least 1 habit');
+  });
+  list.appendChild(div);
+}
+
+function saveChallengeWizard(isEdit, editChallenge) {
+  const name = document.getElementById('wizName').value.trim();
+  if (!name) { showToast('Enter a challenge name'); return; }
+  const days = parseInt(document.getElementById('wizDays').value);
+  if (!days || days < 1) { showToast('Enter valid days'); return; }
+  const start = document.getElementById('wizStart').value;
+  if (!start) { showToast('Select a start date'); return; }
+  const rows = document.querySelectorAll('#wizHabitList .wh-row');
+  const habits = []; let colorIdx = 0;
+  for (const row of rows) {
+    const hn = row.querySelector('.wiz-hname').value.trim();
+    const hp = parseInt(row.querySelector('.wiz-hpts').value) || 10;
+    if (!hn) { showToast('Enter a name for each habit'); return; }
+    habits.push({ id: (colorIdx + 1), name: hn, maxPoints: Math.max(1, hp), color: COLORS[colorIdx % COLORS.length], entries: {} });
+    colorIdx++;
+  }
+
+  if (isEdit && editChallenge) {
+    // Preserve existing entries by matching habit names
+    habits.forEach(h => {
+      const old = editChallenge.habits.find(oh => oh.name === h.name);
+      if (old) { h.entries = old.entries; h.id = old.id; }
+    });
+    editChallenge.name = name;
+    editChallenge.days = days;
+    editChallenge.startDate = start;
+    editChallenge.habits = habits;
+    editChallenge.nextHabitId = habits.length + 1;
+  } else {
+    const newId = data.nextChallengeId++;
+    data.challenges.push({ id: newId, name, days, startDate: start, habits, nextHabitId: habits.length + 1 });
+    data.activeChallengeId = newId;
+  }
+  currentDate = new Date();
+  saveData();
+  switchPage('today');
+  showToast(isEdit ? 'Challenge updated!' : 'Challenge created!');
+}
+
+// ===== DASHBOARD =====
+function renderDashboard() {
+  if (!document.getElementById('page-dashboard').classList.contains('active')) return;
+  const challenge = getActiveChallenge();
+  const habits = getActiveHabits();
+
+  if (!challenge || !habits.length) {
+    document.getElementById('dashTotalEarned').textContent = '0';
+    document.getElementById('dashTotalPossible').textContent = '0';
+    document.getElementById('dashOverallPct').textContent = '0%';
+    document.getElementById('dashHabitGrid').innerHTML = '<div class="empty-state"><p>Create a challenge in Settings</p></div>';
+    document.getElementById('dashHighlights').innerHTML = '';
+    document.getElementById('dashChallengeDay').textContent = '0';
+    document.getElementById('dashChallengeTotal').textContent = challenge ? challenge.days : '0';
+    document.getElementById('dashChallengePct').textContent = '0%';
+    return;
+  }
+
+  const startDate = challenge.startDate;
+  const challengeDays = challenge.days;
+  const today = todayStr();
+  const daysSinceStart = Math.max(1, daysBetween(startDate, today));
+
+  let grandEarned = 0, grandMax = 0;
+  let habitStats = habits.map(h => {
+    let earned = 0, doneDays = 0, totalDays = 0;
+    const maxPts = h.maxPoints || 10;
+    const d = new Date(parseDate(startDate)); const end = new Date();
+    while (d <= end) {
+      const ds = dateStr(d); const val = h.entries[ds] || 0;
+      earned += val > 0 ? maxPts : 0; if (val > 0) doneDays++;
+      totalDays++; d.setDate(d.getDate()+1);
+    }
+    grandEarned += earned; grandMax += maxPts * totalDays;
+    return { ...h, earned, doneDays, totalDays, maxPts, pct: totalDays ? Math.round((doneDays/totalDays)*100) : 0 };
+  });
+
+  const overallPct = grandMax ? Math.round((grandEarned/grandMax)*100) : 0;
+  document.getElementById('dashTotalEarned').textContent = grandEarned;
+  document.getElementById('dashTotalPossible').textContent = grandMax;
+  document.getElementById('dashOverallPct').textContent = overallPct + '%';
+  document.getElementById('dashOverallBar').style.width = Math.min(100,overallPct)+'%';
+
+  const challengeDay = Math.min(challengeDays, daysSinceStart);
+  const challengePct = Math.min(100, Math.round((challengeDay/challengeDays)*100));
+  document.getElementById('dashChallengeDay').textContent = challengeDay;
+  document.getElementById('dashChallengeTotal').textContent = challengeDays;
+  document.getElementById('dashChallengePct').textContent = challengePct + '%';
+  document.getElementById('dashChallengeBar').style.width = challengePct + '%';
+
+  habitStats.sort((a,b)=>b.pct-a.pct);
+  const best = habitStats[0], worst = habitStats[habitStats.length-1];
+  const hl = [];
+  if (best) hl.push(`<div class="hl-card"><div class="hl-icon">&#127942;</div><div class="hl-name">Best</div><div class="hl-val" style="color:var(--green)">${escHtml(best.name)}</div><div style="font-size:9px;color:var(--text3)">${best.pct}%</div></div>`);
+  if (worst && habitStats.length>1) hl.push(`<div class="hl-card"><div class="hl-icon">&#128170;</div><div class="hl-name">Keep going</div><div class="hl-val" style="color:var(--amber)">${escHtml(worst.name)}</div><div style="font-size:9px;color:var(--text3)">${worst.pct}%</div></div>`);
+  const avgDays = habitStats.length ? Math.round(habitStats.reduce((s,h)=>s+h.doneDays,0)/habitStats.length) : 0;
+  hl.push(`<div class="hl-card"><div class="hl-icon">&#128204;</div><div class="hl-name">Avg days</div><div class="hl-val" style="color:var(--accent)">${avgDays}</div><div style="font-size:9px;color:var(--text3)">per habit</div></div>`);
+  document.getElementById('dashHighlights').innerHTML = hl.join('');
+
+  habitStats.sort((a,b)=>b.pct-a.pct);
+  document.getElementById('dashHabitGrid').innerHTML = habitStats.map(h => {
+    const barColor = h.pct>=66?'var(--green)':h.pct>=33?'var(--amber)':'var(--red)';
+    return `<div class="dash-habit">
+      <div class="dash-habit-color" style="background:${h.color}"></div>
+      <div class="dash-habit-info">
+        <div class="dh-name">${escHtml(h.name)}</div>
+        <div class="dh-sub">${h.doneDays}/${h.totalDays} days &middot; ${h.earned}/${h.maxPts*h.totalDays} pts</div>
+        <div class="dash-habit-bar"><div class="fill" style="width:${h.pct}%;background:${barColor}"></div></div>
+      </div>
+      <div class="dash-habit-right">
+        <div class="dh-pct" style="color:${barColor}">${h.pct}%</div>
+        <div class="dh-frac">${h.earned} pts</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== CHARTS =====
+function renderCharts() {
+  if (!document.getElementById('page-charts').classList.contains('active')) return;
+  renderMainChart(); renderCalendar();
+}
+function getChartChallenge() {
+  const c = getActiveChallenge();
+  return c || data.challenges[0] || null;
+}
+function getChartHabits() {
+  const c = getChartChallenge();
+  return c ? c.habits : [];
+}
+
+function renderMainChart() {
+  const canvas = document.getElementById('mainChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+  const challenge = getChartChallenge();
+  const habits = getChartHabits();
+
+  if (!challenge || !habits.length) {
+    mainChart = new Chart(ctx, { type:'bar', data:{ labels:['No data'], datasets:[{ label:'%', data:[0], backgroundColor:'#333' }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} } });
+    return;
+  }
+
+  const labels = []; let dataArr = [];
+
+  if (currentPeriod === 'daily') {
+    const today = new Date();
+    for (let i=6; i>=0; i--) {
+      const d = new Date(today); d.setDate(d.getDate()-i);
+      labels.push(d.toLocaleDateString('en-US',{weekday:'short'}));
+      const ds = dateStr(d);
+      let pts = 0, max = 0;
+      habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+      dataArr.push(max ? Math.round((pts/max)*100) : 0);
+    }
+  } else if (currentPeriod === 'weekly') {
+    const today = new Date();
+    for (let w=4; w>=0; w--) {
+      const s = new Date(today); s.setDate(s.getDate()-(w*7)-6);
+      const e = new Date(today); e.setDate(e.getDate()-(w*7));
+      labels.push(s.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'-'+e.toLocaleDateString('en-US',{day:'numeric'}));
+      let pts=0, max=0;
+      for (let d=0; d<7; d++) {
+        const day = new Date(today); day.setDate(day.getDate()-(w*7)-d);
+        const ds = dateStr(day);
+        habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+      }
+      dataArr.push(max ? Math.round((pts/max)*100) : 0);
+    }
+  } else {
+    const today = new Date();
+    for (let m=5; m>=0; m--) {
+      const d = new Date(today.getFullYear(), today.getMonth()-m, 1);
+      labels.push(d.toLocaleDateString('en-US',{month:'short'}));
+      const month = (today.getMonth()-m+12)%12;
+      const year = today.getFullYear() + Math.floor((today.getMonth()-m)/12);
+      const dim = new Date(year, month+1, 0).getDate();
+      let pts=0, max=0;
+      for (let d=1; d<=dim; d++) {
+        const day = new Date(year, month, d); const ds = dateStr(day);
+        habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+      }
+      dataArr.push(max ? Math.round((pts/max)*100) : 0);
+    }
+  }
+
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  mainChart = new Chart(ctx, {
+    type:'bar', data:{ labels, datasets:[{ label:'%', data:dataArr, backgroundColor:accent+'40', borderColor:accent, borderWidth:2, borderRadius:4, fill:true }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'%'}} }, scales:{ x:{ticks:{color:'#55557a',font:{size:10}},grid:{color:'#1e1e38'}}, y:{ beginAtZero:true, max:100, ticks:{color:'#55557a',font:{size:10},callback:v=>v+'%'}, grid:{color:'#1e1e38'} } } }
+  });
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calendarGrid');
+  const title = document.getElementById('calTitle');
+  const year = calDate.getFullYear(), month = calDate.getMonth();
+  title.textContent = calDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const firstDay = new Date(year,month,1).getDay();
+  const dim = new Date(year,month+1,0).getDate();
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = todayStr();
+  const habits = getChartHabits();
+  let html = dayNames.map(d => `<div class="day-label">${d}</div>`).join('');
+  for (let i=0; i<firstDay; i++) html += '<div class="day-cell dim"></div>';
+  for (let day=1; day<=dim; day++) {
+    const d = new Date(year,month,day); const ds = dateStr(d);
+    const isToday = ds === today;
+    let pts=0, max=0;
+    habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+    const pct = max ? pts/max : 0;
+    const r = Math.round(30+(50-30)*pct), g = Math.round(30+(204-30)*pct), bb = Math.round(40+(113-40)*pct);
+    const bg = pts>0 ? `rgb(${r},${g},${bb})` : 'var(--card2)';
+    html += `<div class="day-cell${isToday?' today':''}" style="background:${bg}" title="${ds}: ${pts}/${max}">${day}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+document.getElementById('calPrev').addEventListener('click', ()=>{ calDate.setMonth(calDate.getMonth()-1); renderCalendar(); });
+document.getElementById('calNext').addEventListener('click', ()=>{ calDate.setMonth(calDate.getMonth()+1); renderCalendar(); });
+document.querySelectorAll('.btn-period').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.btn-period').forEach(b => b.classList.remove('active'));
+    this.classList.add('active'); currentPeriod = this.dataset.period; renderMainChart();
+  });
+});
+
+// ===== SETTINGS =====
+function renderSettings() {
+  const container = document.getElementById('settingsContent');
+
+  if (!data.challenges || !data.challenges.length) {
+    container.innerHTML = '';
+    renderChallengeWizard(container, null);
+    return;
+  }
+
+  let html = `<div class="setting-row">
+    <div><div class="label">Your Challenges</div><div class="desc">Tap to switch active challenge</div></div>
+  </div>
+  <div class="challenge-list">`;
+
+  data.challenges.forEach(c => {
+    const isActive = c.id === data.activeChallengeId;
+    html += `<div class="challenge-card ${isActive?'active':''}" data-id="${c.id}">
+      <div class="cc-info">
+        <div class="cc-name">${escHtml(c.name)}</div>
+        <div class="cc-sub">${c.days} days &middot; ${c.habits.length} habits</div>
+      </div>
+      <div class="cc-check">${isActive?'✓':''}</div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div style="display:flex;gap:8px;margin-bottom:10px">
+    <button class="btn-secondary" id="addChallengeBtn" style="flex:1">+ New Challenge</button>
+    <button class="btn-secondary" id="editActiveBtn" style="flex:1">Edit Active</button>
+    <button class="btn-danger" id="deleteActiveBtn">Delete</button>
+  </div>`;
+
+  html += `<div class="setting-row" style="flex-direction:column;gap:8px;align-items:stretch">
+    <div><div class="label">Backup & Restore</div><div class="desc">Export or import all data</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-secondary" id="exportBtn">Export JSON</button>
+      <button class="btn-secondary" id="importBtn">Import JSON</button>
+    </div>
+    <input type="file" id="importFileInput" accept=".json" style="display:none">
+  </div>`;
+
+  container.innerHTML = html;
+
+  document.querySelectorAll('.challenge-card').forEach(el => {
+    el.addEventListener('click', function() {
+      data.activeChallengeId = Number(this.dataset.id);
+      currentDate = new Date();
+      saveData(); renderSettings();
+    });
+  });
+
+  document.getElementById('addChallengeBtn').addEventListener('click', ()=>{
+    container.innerHTML = '';
+    renderChallengeWizard(container, null);
+  });
+  document.getElementById('editActiveBtn').addEventListener('click', ()=>{
+    const ch = getActiveChallenge();
+    if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch); }
+    else showToast('No active challenge');
+  });
+  document.getElementById('deleteActiveBtn').addEventListener('click', ()=>{
+    const ch = getActiveChallenge();
+    if (!ch) return;
+    if (!confirm(`Delete "${ch.name}" and all its data?`)) return;
+    if (!confirm('Are you sure?')) return;
+    data.challenges = data.challenges.filter(c => c.id !== ch.id);
+    if (data.activeChallengeId === ch.id) {
+      data.activeChallengeId = data.challenges.length ? data.challenges[0].id : null;
+    }
+    saveData(); renderSettings(); renderAll();
+    showToast('Challenge deleted');
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', ()=>{
+    const b = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const u = URL.createObjectURL(b); const a = document.createElement('a');
+    a.href = u; a.download = `challenges-${dateStr(new Date())}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
+    showToast('Data exported!');
+  });
+  document.getElementById('importBtn').addEventListener('click', ()=>document.getElementById('importFileInput').click());
+  document.getElementById('importFileInput').addEventListener('change', function(e) {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = function(ev) {
+      try {
+        const imp = JSON.parse(ev.target.result);
+        if (!imp.challenges && !imp.habits) { showToast('Invalid file'); return; }
+        data = imp; migrateData(); persistData(); renderAll();
+        switchPage('settings');
+        showToast('Data imported!');
+      } catch(err) { showToast('Invalid JSON file'); }
+    };
+    r.readAsText(f); this.value = '';
+  });
+}
+
+// ===== NAVIGATION =====
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  const tab = document.querySelector(`.tab[data-page="${page}"]`);
+  if (tab) tab.classList.add('active');
+  const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (nav) nav.classList.add('active');
+  if (page === 'charts') renderCharts();
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'today') renderToday();
+  if (page === 'settings') renderSettings();
+}
+
+document.querySelectorAll('.tab, .nav-item').forEach(el => {
+  el.addEventListener('click', function() { switchPage(this.dataset.page); });
+});
+
+function renderAll() {
+  document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const active = document.querySelector('.page.active');
+  if (active) {
+    const id = active.id.replace('page-','');
+    if (id === 'today') renderToday();
+    else if (id === 'dashboard') renderDashboard();
+    else if (id === 'charts') renderCharts();
+    else if (id === 'settings') renderSettings();
+  }
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  initData();
+  syncTimer = setInterval(checkServer, 15000);
+});
+</script>
+</body>
+</html>
