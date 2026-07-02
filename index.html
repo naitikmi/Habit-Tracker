@@ -485,7 +485,7 @@ function renderToday() {
     const checked = (h.entries[ds] || 0) > 0;
     const pts = checked ? (h.maxPoints || 10) : 0;
     html += `<div class="check-item" data-id="${h.id}">
-      <button class="check-box${checked?' done':''}" data-id="${h.id}">${checked?'✓':''}</button>
+      <button type="button" class="check-box${checked?' done':''}" data-id="${h.id}">${checked?'✓':''}</button>
       <div class="ci-info">
         <div class="ci-name" style="color:${checked?'var(--text2)':'var(--text)'}">${escHtml(h.name)}</div>
         <div class="ci-sub">${checked?'✓ done':'— pending'}</div>
