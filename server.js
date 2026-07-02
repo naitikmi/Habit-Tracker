@@ -23,10 +23,11 @@ async function initDB() {
   console.log('PostgreSQL connected');
 }
 
-async function loadData() {
+async function loadData(userId) {
+  const id = userId || 'main';
   if (pool) {
     try {
-      const result = await pool.query("SELECT json_data FROM tracker_data WHERE id = 'main'");
+      const result = await pool.query("SELECT json_data FROM tracker_data WHERE id = $1", [id]);
       if (result.rows.length > 0) return result.rows[0].json_data;
       return null;
     } catch (e) {
@@ -45,12 +46,13 @@ async function loadData() {
   return null;
 }
 
-async function saveData(data) {
+async function saveData(data, userId) {
+  const id = userId || 'main';
   if (pool) {
     try {
       await pool.query(
-        "INSERT INTO tracker_data (id, json_data) VALUES ('main', $1) ON CONFLICT (id) DO UPDATE SET json_data = $1",
-        [data]
+        "INSERT INTO tracker_data (id, json_data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET json_data = $2",
+        [id, data]
       );
       return;
     } catch (e) {
@@ -64,13 +66,13 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.static(__dirname));
 
 app.get('/api/data', async (req, res) => {
-  const data = await loadData();
+  const data = await loadData(req.query.userId);
   res.json({ ok: true, data });
 });
 
 app.post('/api/data', async (req, res) => {
   try {
-    await saveData(req.body);
+    await saveData(req.body.data, req.body.userId);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
