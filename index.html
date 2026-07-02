@@ -317,7 +317,9 @@ async function initData() {
   else {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) { try { const p = JSON.parse(raw); if (p) data = p; } catch(e) {} }
-    isServerConnected = false;
+    const r = await tryFetchAPI(API_PATH);
+    isServerConnected = !!(r && r.ok);
+    if (isServerConnected && data.challenges.length) { await saveToServer(data); }
   }
   migrateData(); updateSyncStatus(); renderAll();
 }

@@ -65,11 +65,7 @@ app.use(express.static(__dirname));
 
 app.get('/api/data', async (req, res) => {
   const data = await loadData();
-  if (data) {
-    res.json({ ok: true, data });
-  } else {
-    res.json({ ok: false, data: null });
-  }
+  res.json({ ok: true, data });
 });
 
 app.post('/api/data', async (req, res) => {
