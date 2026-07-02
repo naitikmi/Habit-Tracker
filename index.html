@@ -173,6 +173,23 @@ body{
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--card);color:var(--text);padding:10px 20px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;box-shadow:var(--shadow);z-index:100;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 
+/* Login */
+.auth-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
+.auth-box{background:var(--card);border-radius:var(--radius);padding:30px 24px;width:100%;max-width:340px;text-align:center}
+.auth-box h2{font-size:20px;font-weight:800;margin-bottom:4px;background:linear-gradient(135deg,var(--accent),#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.auth-box .sub{font-size:11px;color:var(--text3);margin-bottom:18px}
+.auth-box input{width:100%;padding:10px 12px;border:2px solid var(--card2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px;outline:none;margin-bottom:8px}
+.auth-box input:focus{border-color:var(--accent)}
+.auth-box .auth-btn{width:100%;padding:10px;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;margin-top:4px}
+.auth-box .auth-btn.primary{background:var(--accent);color:#fff}
+.auth-box .auth-btn.primary:active{opacity:.85}
+.auth-box .auth-btn.secondary{background:var(--card2);color:var(--text2)}
+.auth-box .auth-btn.secondary:active{opacity:.7}
+.auth-box .auth-error{color:var(--red);font-size:11px;margin-top:8px;min-height:16px}
+.auth-box .auth-toggle{font-size:11px;color:var(--text3);margin-top:12px;cursor:pointer}
+.auth-box .auth-toggle:hover{color:var(--accent)}
+.auth-box .admin-note{font-size:10px;color:var(--text3);margin-top:6px}
+
 @media(max-width:400px){
   .container{padding:8px 10px}
   .score-ring-wrap{width:54px;height:54px}
@@ -184,18 +201,26 @@ body{
 </head>
 <body>
 
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <h2>Challenge Tracker</h2>
+    <div class="sub">Sign in to continue</div>
+    <input type="text" id="authUsername" placeholder="Username" maxlength="30" autocomplete="username">
+    <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
+    <button class="auth-btn primary" id="authLoginBtn">Sign In</button>
+    <button class="auth-btn secondary" id="authRegisterBtn">Create Account</button>
+    <div class="auth-error" id="authError"></div>
+    <div class="admin-note">Admin? Use signup code <strong>ADMIN2024</strong> when registering</div>
+  </div>
+</div>
+
 <div class="container">
   <div class="header">
     <div>
       <h1>Challenge Tracker</h1>
       <div class="sub" id="todayLabel"></div>
     </div>
-    <div class="header-right">
-      <div class="sync-status" id="syncStatus">
-        <span class="dot off" id="syncDot"></span>
-        <span id="syncLabel">Local</span>
-      </div>
-    </div>
+    <div class="header-right"></div>
   </div>
 
   <div class="tabs" id="viewTabs">
@@ -283,109 +308,76 @@ body{
 <div class="toast" id="toast"></div>
 
 <script>
-const API_PATH = '/api/data';
-const LS_KEY = 'challengeTracker';
-const USER_ID_KEY = 'challengeUserId';
 const COLORS = ['#7c5cfc','#2ecc71','#e74c3c','#f39c12','#3498db','#e91e63','#00bcd4','#ff9800','#9c27b0','#4caf50'];
-let isServerConnected = false, syncTimer = null;
+const TOKEN_KEY = 'challengeToken';
 let mainChart = null, currentPeriod = 'daily', calDate = new Date(), currentDate = new Date();
+let user = null;
+let defaultsData = null; // admin challenges (shared)
+let progressData = {};   // user entries { habitId: { "date": 1 } }
 
-function getUserId() {
-  let id = localStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-    localStorage.setItem(USER_ID_KEY, id);
-  }
-  return id;
+function tryFetchAPI(path, opts) {
+  const c = new AbortController(); const id = setTimeout(() => c.abort(), 5000);
+  return fetch(path, { ...opts, signal: c.signal }).then(r => { clearTimeout(id); if (!r.ok) return null; return r.json(); }).catch(() => null);
+}
+function authHeaders() {
+  const t = localStorage.getItem(TOKEN_KEY);
+  return t ? { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 }
 
-function getDefaultData() {
-  return { challenges: [], activeChallengeId: null, nextChallengeId: 1 };
+// ===== AUTH =====
+async function login(username, password) {
+  const r = await tryFetchAPI('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
+  if (r && r.ok) { localStorage.setItem(TOKEN_KEY, r.token); user = r.user; return true; }
+  return r ? r.error : 'Server error';
 }
-let data = getDefaultData();
+async function register(username, password, adminCode) {
+  const r = await tryFetchAPI('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password,adminCode}) });
+  if (r && r.ok) { localStorage.setItem(TOKEN_KEY, r.token); user = r.user; return true; }
+  return r ? r.error : 'Server error';
+}
+function logout() { localStorage.removeItem(TOKEN_KEY); user = null; defaultsData = null; progressData = {}; showAuth(); }
+async function checkAuth() {
+  const t = localStorage.getItem(TOKEN_KEY);
+  if (!t) return false;
+  const r = await tryFetchAPI('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + t } });
+  if (r && r.ok) { user = r.user; return true; }
+  localStorage.removeItem(TOKEN_KEY); return false;
+}
 
-// ===== PERSISTENCE =====
-async function tryFetchAPI(path, opts) {
-  try {
-    const c = new AbortController(); const id = setTimeout(() => c.abort(), 3000);
-    const r = await fetch(path, { ...opts, signal: c.signal }); clearTimeout(id);
-    if (!r.ok) return null; return await r.json();
-  } catch(e) { return null; }
+// ===== DATA LOADING =====
+async function loadDefaults() {
+  const r = await tryFetchAPI('/api/default-challenges');
+  if (r && r.ok && r.data) defaultsData = r.data;
 }
-async function loadFromServer() {
-  const r = await tryFetchAPI(API_PATH + '?userId=' + encodeURIComponent(getUserId()));
-  if (r && r.ok && r.data) return r.data;
-  return null;
+async function loadProgress() {
+  const r = await tryFetchAPI('/api/progress', { headers: authHeaders() });
+  if (r && r.ok && r.data) progressData = r.data; else progressData = {};
 }
-async function saveToServer(d) {
-  const r = await tryFetchAPI(API_PATH, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId: getUserId(), data: d }) });
-  return r && r.ok;
+async function saveProgress() {
+  await tryFetchAPI('/api/progress', { method:'POST', headers:authHeaders(), body:JSON.stringify({data:progressData}) });
 }
-async function initData() {
-  const s = await loadFromServer();
-  if (s) { data = s; isServerConnected = true; }
-  else {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) { try { const p = JSON.parse(raw); if (p) data = p; } catch(e) {} }
-    const r = await tryFetchAPI(API_PATH);
-    isServerConnected = !!(r && r.ok);
-    if (isServerConnected && data.challenges.length) { await saveToServer(data); }
-  }
-  migrateData(); updateSyncStatus(); renderAll();
+async function saveDefaultsToServer() {
+  await tryFetchAPI('/api/default-challenges', { method:'POST', headers:authHeaders(), body:JSON.stringify({data:defaultsData}) });
 }
-function migrateData() {
-  // Convert single-challenge old format -> multi-challenge
-  if (data.challenge && !data.challenges) {
-    const old = data.challenge;
-    const habs = (data.habits || []).map((h,i) => {
-      if (!h.entries) h.entries = {};
-      if (!h.maxPoints) h.maxPoints = 10;
-      return h;
-    });
-    data.challenges = [{ id: 1, name: old.name || 'My Challenge', days: old.days || 21, startDate: old.startDate || dateStr(new Date()), habits: habs, nextHabitId: (habs.length || 0) + 1 }];
-    data.activeChallengeId = 1;
-    data.nextChallengeId = 2;
-    delete data.challenge; delete data.habits;
-  }
-  // Ensure all challenges have proper structure
-  if (data.challenges) {
-    data.challenges.forEach(c => {
-      if (!c.habits) c.habits = [];
-      if (!c.nextHabitId) c.nextHabitId = (c.habits.length || 0) + 1;
-      c.habits.forEach(h => { if (!h.entries) h.entries = {}; if (!h.maxPoints) h.maxPoints = 10; });
-    });
-    if (!data.nextChallengeId) data.nextChallengeId = (data.challenges.length || 0) + 1;
-  }
+
+async function initApp() {
+  if (!await checkAuth()) { showAuth(); return; }
+  await loadDefaults();
+  await loadProgress();
+  renderAll();
 }
-async function persistData() {
-  localStorage.setItem(LS_KEY, JSON.stringify(data));
-  if (isServerConnected) { const ok = await saveToServer(data); if (!ok) { isServerConnected = false; updateSyncStatus(); } }
-  updateSyncStatus();
-}
-async function checkServer() {
-  const r = await tryFetchAPI(API_PATH); const was = isServerConnected;
-  isServerConnected = !!(r && r.ok);
-  if (isServerConnected && !was) {
-    const s = await loadFromServer();
-    if (s) { if (!localStorage.getItem(LS_KEY)) { data = s; migrateData(); renderAll(); } else await saveToServer(data); }
-    else await saveToServer(data);
-  }
-  updateSyncStatus();
-}
-function updateSyncStatus() {
-  const d = document.getElementById('syncDot'), l = document.getElementById('syncLabel');
-  if (isServerConnected) { d.className = 'dot on'; l.textContent = 'Saved'; } else { d.className = 'dot off'; l.textContent = 'Local'; }
-}
-function saveData() { persistData(); }
 
 // ===== HELPERS =====
+function getChallenges() {
+  return (defaultsData && defaultsData.challenges) || [];
+}
 function getActiveChallenge() {
-  if (!data.challenges || !data.activeChallengeId) return null;
-  return data.challenges.find(c => c.id === data.activeChallengeId) || null;
+  const list = getChallenges();
+  if (!list.length || !defaultsData || !defaultsData.activeChallengeId) return null;
+  return list.find(c => c.id === defaultsData.activeChallengeId) || list[0] || null;
 }
 function getActiveHabits() {
-  const c = getActiveChallenge();
-  return c ? c.habits : [];
+  const c = getActiveChallenge(); return c ? c.habits : [];
 }
 function dateStr(d) { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 function parseDate(s) { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
@@ -398,18 +390,33 @@ function getChallengeEnd(ch) {
   d.setDate(d.getDate() + ch.days - 1);
   return d;
 }
-function calcStreak(habitId, habits) {
-  const h = habits.find(x => x.id === habitId);
-  if (!h) return 0;
+
+let toastTimeout;
+function showToast(msg) {
+  const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimeout); toastTimeout = setTimeout(()=>el.classList.remove('show'), 2000);
+}
+function calcStreak(habitId) {
+  const entries = progressData[habitId] || {};
   let streak = 0;
   const d = new Date();
   while (true) {
     const s = dateStr(d);
-    if ((h.entries[s] || 0) > 0) { streak++; d.setDate(d.getDate()-1); }
+    if ((entries[s] || 0) > 0) { streak++; d.setDate(d.getDate()-1); }
     else break;
   }
   return streak;
 }
+function todayStr() { return dateStr(new Date()); }
+function daysBetween(a,b) { return Math.round((parseDate(dateStr(b))-parseDate(dateStr(a)))/86400000)+1; }
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function getChallengeEnd(ch) {
+  if (!ch) return null;
+  const d = parseDate(ch.startDate);
+  d.setDate(d.getDate() + ch.days - 1);
+  return d;
+}
+
 
 let toastTimeout;
 function showToast(msg) {
@@ -418,6 +425,14 @@ function showToast(msg) {
 }
 
 // ===== TODAY =====
+function getEntry(habitId) {
+  return (progressData[habitId] || {})[dateStr(currentDate)] || 0;
+}
+function setEntry(habitId, val) {
+  if (!progressData[habitId]) progressData[habitId] = {};
+  progressData[habitId][dateStr(currentDate)] = val;
+}
+
 function renderToday() {
   const container = document.getElementById('todayContent');
   const challenge = getActiveChallenge();
@@ -425,22 +440,21 @@ function renderToday() {
 
   if (!challenge || !habits.length) {
     container.innerHTML = `<div class="empty-state" style="padding:60px 20px">
-      <p style="font-size:14px;margin-bottom:6px">No active challenge</p>
-      <p style="font-size:12px;color:var(--text2)">Go to <strong>Settings</strong> to create one</p>
+      <p style="font-size:14px;margin-bottom:6px">No default challenges yet</p>
+      <p style="font-size:12px;color:var(--text2)">Ask your admin to create one</p>
     </div>`;
     return;
   }
 
   const ds = dateStr(currentDate);
   const start = parseDate(challenge.startDate);
-  const end = getChallengeEnd(challenge);
   const isBefore = currentDate < start && dateStr(currentDate) !== dateStr(start);
 
   let html = `<div class="challenge-selector">
     <span class="cs-label">Challenge:</span>
     <select id="challengeSelect">`;
-  data.challenges.forEach(c => {
-    html += `<option value="${c.id}" ${c.id === data.activeChallengeId ? 'selected' : ''}>${escHtml(c.name)}</option>`;
+  getChallenges().forEach(c => {
+    html += `<option value="${c.id}" ${c.id === defaultsData.activeChallengeId ? 'selected' : ''}>${escHtml(c.name)}</option>`;
   });
   html += `</select></div>`;
 
@@ -454,14 +468,13 @@ function renderToday() {
   if (isBefore) {
     html += `<div class="empty-state"><p>Challenge starts ${formatDateNice(start)}</p></div>`;
     container.innerHTML = html;
-    bindTodayEvents(challenge);
-    return;
+    bindTodayEvents(); return;
   }
 
   const totalMax = habits.reduce((s, h) => s + (h.maxPoints || 10), 0);
   let ptsEarned = 0, doneCount = 0;
   habits.forEach(h => {
-    if ((h.entries[ds] || 0) > 0) { doneCount++; ptsEarned += (h.maxPoints || 10); }
+    if (getEntry(h.id) > 0) { doneCount++; ptsEarned += (h.maxPoints || 10); }
   });
   const pct = totalMax ? Math.round((ptsEarned / totalMax) * 100) : 0;
   const offset = 188.5 - (pct/100) * 188.5;
@@ -481,18 +494,9 @@ function renderToday() {
     </div>
   </div>`;
 
-  html += `<div class="dash-summary">
-    <div class="dash-title">Today's Points</div>
-    <div class="dash-row">
-      <span class="dash-val"><span class="accent">${ptsEarned}</span> / ${totalMax}</span>
-      <span class="dash-label">points earned</span>
-    </div>
-    <div class="dash-bar"><div class="fill" style="width:${pct}%"></div></div>
-  </div>`;
-
   html += `<div class="checklist">`;
   habits.forEach(h => {
-    const checked = (h.entries[ds] || 0) > 0;
+    const checked = getEntry(h.id) > 0;
     const pts = checked ? (h.maxPoints || 10) : 0;
     html += `<div class="check-item" data-id="${h.id}">
       <button type="button" class="check-box${checked?' done':''}" data-id="${h.id}">${checked?'✓':''}</button>
@@ -514,28 +518,26 @@ function renderToday() {
   const dl = document.getElementById('tdDayLabel');
   if (dl) dl.textContent = `Day ${dayNum}`;
 
-  bindTodayEvents(challenge);
+  bindTodayEvents();
 }
 
-function toggleHabitById(id, challenge) {
-  const h = challenge.habits.find(x => x.id === id);
-  if (!h) return;
-  const ds = dateStr(currentDate);
-  h.entries[ds] = (h.entries[ds] || 0) > 0 ? 0 : 1;
-  saveData(); renderToday();
+function toggleHabitById(id) {
+  const cur = getEntry(id);
+  setEntry(id, cur > 0 ? 0 : 1);
+  saveProgress(); renderToday();
 }
 
-function bindTodayEvents(challenge) {
+function bindTodayEvents() {
   document.querySelectorAll('.check-box').forEach(b => {
     b.addEventListener('click', function(e) {
       e.stopPropagation();
-      toggleHabitById(Number(this.dataset.id), challenge);
+      toggleHabitById(Number(this.dataset.id));
     });
   });
   document.querySelectorAll('.check-item').forEach(item => {
     item.addEventListener('click', function(e) {
       if (e.target.closest('.check-box')) return;
-      toggleHabitById(Number(this.dataset.id), challenge);
+      toggleHabitById(Number(this.dataset.id));
     });
   });
   const prev = document.getElementById('tdPrevDay');
@@ -544,9 +546,9 @@ function bindTodayEvents(challenge) {
   if (next) next.addEventListener('click', ()=>{ currentDate.setDate(currentDate.getDate()+1); renderToday(); });
   const sel = document.getElementById('challengeSelect');
   if (sel) sel.addEventListener('change', function() {
-    data.activeChallengeId = Number(this.value);
+    defaultsData.activeChallengeId = Number(this.value);
     currentDate = new Date();
-    saveData(); renderToday();
+    saveDefaultsToServer(); renderToday();
   });
 }
 
@@ -558,89 +560,117 @@ function formatDateNice(d) {
   return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:d.getFullYear()!==t.getFullYear()?'numeric':undefined});
 }
 
-// ===== WIZARD HELPERS =====
-function renderChallengeWizard(container, editChallenge) {
-  const isEdit = !!editChallenge;
-  container.innerHTML = `<div class="wizard">
-    <h2>${isEdit ? 'Edit Challenge' : 'Create Your Challenge'}</h2>
-    <label>Challenge Name</label>
-    <input type="text" id="wizName" value="${isEdit ? escHtml(editChallenge.name) : 'My 30-Day Challenge'}" maxlength="50">
-    <label>Duration (days)</label>
-    <input type="number" id="wizDays" value="${isEdit ? editChallenge.days : 30}" min="1" max="999">
-    <label>Start Date</label>
-    <input type="date" id="wizStart" value="${isEdit ? editChallenge.startDate : todayStr()}">
-    <div class="wizard-habits">
-      <div class="wh-title">Habits</div>
-      <div id="wizHabitList"></div>
-      <button class="btn-wh-add" id="wizAddHabit">+ Add Habit</button>
-    </div>
-    <button class="btn-wiz-save" id="wizSave">${isEdit ? 'Save Changes' : 'Start Challenge'}</button>
-  </div>`;
-
-  if (isEdit) {
-    editChallenge.habits.forEach(h => addWizHabitRow(h.name, h.maxPoints));
-  }
-  if (!isEdit || !editChallenge.habits.length) {
-    addWizHabitRow(); addWizHabitRow(); addWizHabitRow();
-  }
-
-  document.getElementById('wizAddHabit').addEventListener('click', ()=>addWizHabitRow());
-  document.getElementById('wizSave').addEventListener('click', ()=>saveChallengeWizard(isEdit, editChallenge));
+// ===== CHARTS =====
+function renderCharts() {
+  if (!document.getElementById('page-charts').classList.contains('active')) return;
+  renderMainChart(); renderCalendar();
+}
+function getChartChallenge() {
+  return getActiveChallenge() || (getChallenges()[0] || null);
+}
+function getChartHabits() {
+  const c = getChartChallenge(); return c ? c.habits : [];
+}
+function getChartEntry(habitId, ds) {
+  return (progressData[habitId] || {})[ds] || 0;
 }
 
-function addWizHabitRow(name, pts) {
-  const list = document.getElementById('wizHabitList');
-  const div = document.createElement('div'); div.className = 'wh-row';
-  div.innerHTML = `
-    <input type="text" placeholder="Habit name" class="wiz-hname" value="${escHtml(name||'')}" maxlength="40">
-    <input type="number" class="wiz-hpts" value="${pts||10}" min="1" max="999">
-    <button class="btn-wh-del">&#10005;</button>
-  `;
-  div.querySelector('.btn-wh-del').addEventListener('click', ()=>{
-    if (list.children.length > 1) div.remove();
-    else showToast('Need at least 1 habit');
-  });
-  list.appendChild(div);
-}
+function renderMainChart() {
+  const canvas = document.getElementById('mainChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+  const challenge = getChartChallenge();
+  const habits = getChartHabits();
 
-function saveChallengeWizard(isEdit, editChallenge) {
-  const name = document.getElementById('wizName').value.trim();
-  if (!name) { showToast('Enter a challenge name'); return; }
-  const days = parseInt(document.getElementById('wizDays').value);
-  if (!days || days < 1) { showToast('Enter valid days'); return; }
-  const start = document.getElementById('wizStart').value;
-  if (!start) { showToast('Select a start date'); return; }
-  const rows = document.querySelectorAll('#wizHabitList .wh-row');
-  const habits = []; let colorIdx = 0;
-  for (const row of rows) {
-    const hn = row.querySelector('.wiz-hname').value.trim();
-    const hp = parseInt(row.querySelector('.wiz-hpts').value) || 10;
-    if (!hn) { showToast('Enter a name for each habit'); return; }
-    habits.push({ id: (colorIdx + 1), name: hn, maxPoints: Math.max(1, hp), color: COLORS[colorIdx % COLORS.length], entries: {} });
-    colorIdx++;
+  if (!challenge || !habits.length) {
+    mainChart = new Chart(ctx, { type:'bar', data:{ labels:['No data'], datasets:[{ label:'%', data:[0], backgroundColor:'#333' }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} } });
+    return;
   }
 
-  if (isEdit && editChallenge) {
-    // Preserve existing entries by matching habit names
-    habits.forEach(h => {
-      const old = editChallenge.habits.find(oh => oh.name === h.name);
-      if (old) { h.entries = old.entries; h.id = old.id; }
-    });
-    editChallenge.name = name;
-    editChallenge.days = days;
-    editChallenge.startDate = start;
-    editChallenge.habits = habits;
-    editChallenge.nextHabitId = habits.length + 1;
+  const labels = []; let dataArr = [];
+
+  if (currentPeriod === 'daily') {
+    const today = new Date();
+    for (let i=6; i>=0; i--) {
+      const d = new Date(today); d.setDate(d.getDate()-i);
+      labels.push(d.toLocaleDateString('en-US',{weekday:'short'}));
+      const ds = dateStr(d);
+      let pts = 0, max = 0;
+      habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
+      dataArr.push(max ? Math.round((pts/max)*100) : 0);
+    }
+  } else if (currentPeriod === 'weekly') {
+    const today = new Date();
+    for (let w=4; w>=0; w--) {
+      const s = new Date(today); s.setDate(s.getDate()-(w*7)-6);
+      const e = new Date(today); e.setDate(e.getDate()-(w*7));
+      labels.push(s.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'-'+e.toLocaleDateString('en-US',{day:'numeric'}));
+      let pts=0, max=0;
+      for (let d=0; d<7; d++) {
+        const day = new Date(today); day.setDate(day.getDate()-(w*7)-d);
+        const ds = dateStr(day);
+        habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
+      }
+      dataArr.push(max ? Math.round((pts/max)*100) : 0);
+    }
   } else {
-    const newId = data.nextChallengeId++;
-    data.challenges.push({ id: newId, name, days, startDate: start, habits, nextHabitId: habits.length + 1 });
-    data.activeChallengeId = newId;
+    const today = new Date();
+    for (let m=5; m>=0; m--) {
+      const d = new Date(today.getFullYear(), today.getMonth()-m, 1);
+      labels.push(d.toLocaleDateString('en-US',{month:'short'}));
+      const month = (today.getMonth()-m+12)%12;
+      const year = today.getFullYear() + Math.floor((today.getMonth()-m)/12);
+      const dim = new Date(year, month+1, 0).getDate();
+      let pts=0, max=0;
+      for (let d=1; d<=dim; d++) {
+        const day = new Date(year, month, d); const ds = dateStr(day);
+        habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
+      }
+      dataArr.push(max ? Math.round((pts/max)*100) : 0);
+    }
   }
-  currentDate = new Date();
-  saveData();
-  switchPage('today');
-  showToast(isEdit ? 'Challenge updated!' : 'Challenge created!');
+
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  mainChart = new Chart(ctx, {
+    type:'bar', data:{ labels, datasets:[{ label:'%', data:dataArr, backgroundColor:accent+'40', borderColor:accent, borderWidth:2, borderRadius:4, fill:true }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'%'}} }, scales:{ x:{ticks:{color:'#55557a',font:{size:10}},grid:{color:'#1e1e38'}}, y:{ beginAtZero:true, max:100, ticks:{color:'#55557a',font:{size:10},callback:v=>v+'%'}, grid:{color:'#1e1e38'} } } }
+  });
 }
+
+function renderCalendar() {
+  const grid = document.getElementById('calendarGrid');
+  const title = document.getElementById('calTitle');
+  const year = calDate.getFullYear(), month = calDate.getMonth();
+  title.textContent = calDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const firstDay = new Date(year,month,1).getDay();
+  const dim = new Date(year,month+1,0).getDate();
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = todayStr();
+  const habits = getChartHabits();
+  let html = dayNames.map(d => `<div class="day-label">${d}</div>`).join('');
+  for (let i=0; i<firstDay; i++) html += '<div class="day-cell dim"></div>';
+  for (let day=1; day<=dim; day++) {
+    const d = new Date(year,month,day); const ds = dateStr(d);
+    const isToday = ds === today;
+    let pts=0, max=0;
+    habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
+    const pct = max ? pts/max : 0;
+    const r = Math.round(30+(50-30)*pct), g = Math.round(30+(204-30)*pct), bb = Math.round(40+(113-40)*pct);
+    const bg = pts>0 ? `rgb(${r},${g},${bb})` : 'var(--card2)';
+    html += `<div class="day-cell${isToday?' today':''}" style="background:${bg}" title="${ds}: ${pts}/${max}">${day}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+document.getElementById('calPrev').addEventListener('click', ()=>{ calDate.setMonth(calDate.getMonth()-1); renderCalendar(); });
+document.getElementById('calNext').addEventListener('click', ()=>{ calDate.setMonth(calDate.getMonth()+1); renderCalendar(); });
+document.querySelectorAll('.btn-period').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.btn-period').forEach(b => b.classList.remove('active'));
+    this.classList.add('active'); currentPeriod = this.dataset.period; renderMainChart();
+  });
+});
 
 // ===== DASHBOARD =====
 function renderDashboard() {
@@ -652,7 +682,7 @@ function renderDashboard() {
     document.getElementById('dashTotalEarned').textContent = '0';
     document.getElementById('dashTotalPossible').textContent = '0';
     document.getElementById('dashOverallPct').textContent = '0%';
-    document.getElementById('dashHabitGrid').innerHTML = '<div class="empty-state"><p>Create a challenge in Settings</p></div>';
+    document.getElementById('dashHabitGrid').innerHTML = '<div class="empty-state"><p>No challenges available</p></div>';
     document.getElementById('dashHighlights').innerHTML = '';
     document.getElementById('dashChallengeDay').textContent = '0';
     document.getElementById('dashChallengeTotal').textContent = challenge ? challenge.days : '0';
@@ -670,8 +700,9 @@ function renderDashboard() {
     let earned = 0, doneDays = 0, totalDays = 0;
     const maxPts = h.maxPoints || 10;
     const d = new Date(parseDate(startDate)); const end = new Date();
+    const entries = progressData[h.id] || {};
     while (d <= end) {
-      const ds = dateStr(d); const val = h.entries[ds] || 0;
+      const ds = dateStr(d); const val = entries[ds] || 0;
       earned += val > 0 ? maxPts : 0; if (val > 0) doneDays++;
       totalDays++; d.setDate(d.getDate()+1);
     }
@@ -726,7 +757,7 @@ function renderCharts() {
 }
 function getChartChallenge() {
   const c = getActiveChallenge();
-  return c || data.challenges[0] || null;
+  return c || getChallenges()[0] || null;
 }
 function getChartHabits() {
   const c = getChartChallenge();
@@ -830,102 +861,192 @@ document.querySelectorAll('.btn-period').forEach(btn => {
   });
 });
 
+// ===== WIZARD (admin) =====
+function renderChallengeWizard(container, editChallenge) {
+  const isEdit = !!editChallenge;
+  container.innerHTML = `<div class="wizard">
+    <h2>${isEdit ? 'Edit Challenge' : 'Create Default Challenge'}</h2>
+    <label>Challenge Name</label>
+    <input type="text" id="wizName" value="${isEdit ? escHtml(editChallenge.name) : 'My 30-Day Challenge'}" maxlength="50">
+    <label>Duration (days)</label>
+    <input type="number" id="wizDays" value="${isEdit ? editChallenge.days : 30}" min="1" max="999">
+    <label>Start Date</label>
+    <input type="date" id="wizStart" value="${isEdit ? editChallenge.startDate : todayStr()}">
+    <div class="wizard-habits">
+      <div class="wh-title">Habits</div>
+      <div id="wizHabitList"></div>
+      <button class="btn-wh-add" id="wizAddHabit">+ Add Habit</button>
+    </div>
+    <button class="btn-wiz-save" id="wizSave">${isEdit ? 'Save Changes' : 'Create Challenge'}</button>
+    <button class="btn-wiz-save" id="wizCancel" style="background:var(--card2);color:var(--text);margin-top:6px">Cancel</button>
+  </div>`;
+
+  if (isEdit) {
+    editChallenge.habits.forEach(h => addWizHabitRow(h.name, h.maxPoints));
+  }
+  if (!isEdit || !editChallenge.habits.length) {
+    addWizHabitRow(); addWizHabitRow(); addWizHabitRow();
+  }
+
+  document.getElementById('wizAddHabit').addEventListener('click', ()=>addWizHabitRow());
+  document.getElementById('wizSave').addEventListener('click', ()=>saveChallengeWizard(isEdit, editChallenge));
+  document.getElementById('wizCancel').addEventListener('click', ()=>renderSettings());
+}
+
+function addWizHabitRow(name, pts) {
+  const list = document.getElementById('wizHabitList');
+  const div = document.createElement('div'); div.className = 'wh-row';
+  div.innerHTML = `
+    <input type="text" placeholder="Habit name" class="wiz-hname" value="${escHtml(name||'')}" maxlength="40">
+    <input type="number" class="wiz-hpts" value="${pts||10}" min="1" max="999">
+    <button class="btn-wh-del">&#10005;</button>
+  `;
+  div.querySelector('.btn-wh-del').addEventListener('click', ()=>{
+    if (list.children.length > 1) div.remove();
+    else showToast('Need at least 1 habit');
+  });
+  list.appendChild(div);
+}
+
+function saveChallengeWizard(isEdit, editChallenge) {
+  const name = document.getElementById('wizName').value.trim();
+  if (!name) { showToast('Enter a challenge name'); return; }
+  const days = parseInt(document.getElementById('wizDays').value);
+  if (!days || days < 1) { showToast('Enter valid days'); return; }
+  const start = document.getElementById('wizStart').value;
+  if (!start) { showToast('Select a start date'); return; }
+  const rows = document.querySelectorAll('#wizHabitList .wh-row');
+  const habits = []; let colorIdx = 0;
+  for (const row of rows) {
+    const hn = row.querySelector('.wiz-hname').value.trim();
+    const hp = parseInt(row.querySelector('.wiz-hpts').value) || 10;
+    if (!hn) { showToast('Enter a name for each habit'); return; }
+    habits.push({ id: (colorIdx + 1), name: hn, maxPoints: Math.max(1, hp), color: COLORS[colorIdx % COLORS.length] });
+    colorIdx++;
+  }
+
+  if (!defaultsData) defaultsData = { challenges: [], activeChallengeId: null, nextChallengeId: 1 };
+  if (!defaultsData.challenges) defaultsData.challenges = [];
+  if (!defaultsData.nextChallengeId) defaultsData.nextChallengeId = (defaultsData.challenges.length || 0) + 1;
+
+  if (isEdit && editChallenge) {
+    editChallenge.name = name;
+    editChallenge.days = days;
+    editChallenge.startDate = start;
+    editChallenge.habits = habits;
+    editChallenge.nextHabitId = habits.length + 1;
+  } else {
+    const newId = defaultsData.nextChallengeId++;
+    defaultsData.challenges.push({ id: newId, name, days, startDate: start, habits, nextHabitId: habits.length + 1 });
+    defaultsData.activeChallengeId = newId;
+  }
+  currentDate = new Date();
+  saveDefaultsToServer();
+  switchPage('today');
+  showToast(isEdit ? 'Challenge updated!' : 'Challenge created!');
+}
+
 // ===== SETTINGS =====
+function showAuth() {
+  document.getElementById('authOverlay').style.display = 'flex';
+  document.querySelector('.container').style.display = 'none';
+  document.querySelector('.bottom-nav').style.display = 'none';
+}
+function hideAuth() {
+  document.getElementById('authOverlay').style.display = 'none';
+  document.querySelector('.container').style.display = 'block';
+  document.querySelector('.bottom-nav').style.display = 'flex';
+}
+
+document.getElementById('authLoginBtn').addEventListener('click', async () => {
+  const u = document.getElementById('authUsername').value.trim();
+  const p = document.getElementById('authPassword').value;
+  const err = document.getElementById('authError');
+  if (!u || !p) { err.textContent = 'Enter username and password'; return; }
+  const r = await login(u, p);
+  if (r === true) { err.textContent = ''; hideAuth(); initApp(); }
+  else err.textContent = r;
+});
+document.getElementById('authRegisterBtn').addEventListener('click', async () => {
+  const u = document.getElementById('authUsername').value.trim();
+  const p = document.getElementById('authPassword').value;
+  const err = document.getElementById('authError');
+  if (!u || !p) { err.textContent = 'Enter username and password'; return; }
+  const r = await register(u, p, '');
+  if (r === true) { err.textContent = ''; hideAuth(); initApp(); }
+  else err.textContent = r;
+});
+document.getElementById('authUsername').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('authPassword').focus(); });
+document.getElementById('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('authLoginBtn').click(); });
+
 function renderSettings() {
   const container = document.getElementById('settingsContent');
 
-  if (!data.challenges || !data.challenges.length) {
-    container.innerHTML = '';
-    renderChallengeWizard(container, null);
-    return;
+  let html = `<div class="setting-row">
+    <div><div class="label">Account</div><div class="desc">Signed in as <strong>${escHtml(user.username)}</strong> (${user.role})</div></div>
+  </div>`;
+
+  if (user.role === 'admin') {
+    const challenges = getChallenges();
+    if (challenges.length) {
+      html += `<div class="setting-row"><div><div class="label">Default Challenges</div><div class="desc">Tap to edit, visible to all users</div></div></div>
+      <div class="challenge-list">`;
+      challenges.forEach(c => {
+        const isActive = c.id === (defaultsData ? defaultsData.activeChallengeId : null);
+        html += `<div class="challenge-card ${isActive?'active':''}" data-id="${c.id}">
+          <div class="cc-info">
+            <div class="cc-name">${escHtml(c.name)}</div>
+            <div class="cc-sub">${c.days} days &middot; ${c.habits.length} habits</div>
+          </div>
+          <div class="cc-check">${isActive?'✓':''}</div>
+        </div>`;
+      });
+      html += `</div>`;
+      html += `<div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn-secondary" id="editActiveBtn" style="flex:1">Edit</button>
+        <button class="btn-danger" id="deleteActiveBtn">Delete</button>
+      </div>`;
+    }
+    html += `<button class="btn-secondary" id="addChallengeBtn" style="width:100%;margin-bottom:10px">+ Create Default Challenge</button>`;
   }
 
-  let html = `<div class="setting-row">
-    <div><div class="label">Your Challenges</div><div class="desc">Tap to switch active challenge</div></div>
-  </div>
-  <div class="challenge-list">`;
-
-  data.challenges.forEach(c => {
-    const isActive = c.id === data.activeChallengeId;
-    html += `<div class="challenge-card ${isActive?'active':''}" data-id="${c.id}">
-      <div class="cc-info">
-        <div class="cc-name">${escHtml(c.name)}</div>
-        <div class="cc-sub">${c.days} days &middot; ${c.habits.length} habits</div>
-      </div>
-      <div class="cc-check">${isActive?'✓':''}</div>
-    </div>`;
-  });
-  html += `</div>`;
-
-  html += `<div style="display:flex;gap:8px;margin-bottom:10px">
-    <button class="btn-secondary" id="addChallengeBtn" style="flex:1">+ New Challenge</button>
-    <button class="btn-secondary" id="editActiveBtn" style="flex:1">Edit Active</button>
-    <button class="btn-danger" id="deleteActiveBtn">Delete</button>
-  </div>`;
-
-  html += `<div class="setting-row" style="flex-direction:column;gap:8px;align-items:stretch">
-    <div><div class="label">Backup & Restore</div><div class="desc">Export or import all data</div></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn-secondary" id="exportBtn">Export JSON</button>
-      <button class="btn-secondary" id="importBtn">Import JSON</button>
-    </div>
-    <input type="file" id="importFileInput" accept=".json" style="display:none">
-  </div>`;
+  html += `<button class="btn-danger" id="logoutBtn" style="width:100%">Sign Out</button>`;
 
   container.innerHTML = html;
 
-  document.querySelectorAll('.challenge-card').forEach(el => {
-    el.addEventListener('click', function() {
-      data.activeChallengeId = Number(this.dataset.id);
-      currentDate = new Date();
-      saveData(); renderSettings();
+  if (user.role === 'admin') {
+    document.querySelectorAll('.challenge-card').forEach(el => {
+      el.addEventListener('click', function() {
+        const id = Number(this.dataset.id);
+        const ch = getChallenges().find(c => c.id === id);
+        if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch); }
+      });
     });
-  });
+    document.getElementById('addChallengeBtn').addEventListener('click', ()=>{
+      container.innerHTML = '';
+      renderChallengeWizard(container, null);
+    });
+    const editBtn = document.getElementById('editActiveBtn');
+    if (editBtn) editBtn.addEventListener('click', ()=>{
+      const ch = getActiveChallenge();
+      if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch); }
+      else showToast('No challenge selected');
+    });
+    const delBtn = document.getElementById('deleteActiveBtn');
+    if (delBtn) delBtn.addEventListener('click', ()=>{
+      const ch = getActiveChallenge();
+      if (!ch) return;
+      if (!confirm(`Delete "${ch.name}"? Users will lose access.`)) return;
+      defaultsData.challenges = defaultsData.challenges.filter(c => c.id !== ch.id);
+      if (defaultsData.activeChallengeId === ch.id) {
+        defaultsData.activeChallengeId = defaultsData.challenges.length ? defaultsData.challenges[0].id : null;
+      }
+      saveDefaultsToServer(); renderSettings(); renderAll();
+      showToast('Challenge deleted');
+    });
+  }
 
-  document.getElementById('addChallengeBtn').addEventListener('click', ()=>{
-    container.innerHTML = '';
-    renderChallengeWizard(container, null);
-  });
-  document.getElementById('editActiveBtn').addEventListener('click', ()=>{
-    const ch = getActiveChallenge();
-    if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch); }
-    else showToast('No active challenge');
-  });
-  document.getElementById('deleteActiveBtn').addEventListener('click', ()=>{
-    const ch = getActiveChallenge();
-    if (!ch) return;
-    if (!confirm(`Delete "${ch.name}" and all its data?`)) return;
-    if (!confirm('Are you sure?')) return;
-    data.challenges = data.challenges.filter(c => c.id !== ch.id);
-    if (data.activeChallengeId === ch.id) {
-      data.activeChallengeId = data.challenges.length ? data.challenges[0].id : null;
-    }
-    saveData(); renderSettings(); renderAll();
-    showToast('Challenge deleted');
-  });
-
-  document.getElementById('exportBtn').addEventListener('click', ()=>{
-    const b = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-    const u = URL.createObjectURL(b); const a = document.createElement('a');
-    a.href = u; a.download = `challenges-${dateStr(new Date())}.json`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
-    showToast('Data exported!');
-  });
-  document.getElementById('importBtn').addEventListener('click', ()=>document.getElementById('importFileInput').click());
-  document.getElementById('importFileInput').addEventListener('change', function(e) {
-    const f = e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = function(ev) {
-      try {
-        const imp = JSON.parse(ev.target.result);
-        if (!imp.challenges && !imp.habits) { showToast('Invalid file'); return; }
-        data = imp; migrateData(); persistData(); renderAll();
-        switchPage('settings');
-        showToast('Data imported!');
-      } catch(err) { showToast('Invalid JSON file'); }
-    };
-    r.readAsText(f); this.value = '';
-  });
+  document.getElementById('logoutBtn').addEventListener('click', ()=>{ logout(); });
 }
 
 // ===== NAVIGATION =====
@@ -962,8 +1083,8 @@ function renderAll() {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
-  initData();
-  syncTimer = setInterval(checkServer, 15000);
+  hideAuth();
+  initApp();
 });
 </script>
 </body>
