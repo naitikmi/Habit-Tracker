@@ -6,3 +6,9 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: node server.js
+
+databases:
+  - name: habit-tracker-db
+    plan: free
+    databaseType: postgres
+    ipAllowList: []
