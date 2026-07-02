@@ -207,10 +207,12 @@ body{
     <div class="sub">Sign in to continue</div>
     <input type="text" id="authUsername" placeholder="Username" maxlength="30" autocomplete="username">
     <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
+    <input type="text" id="authAdminCode" placeholder="Admin code (optional)" style="display:none">
     <button class="auth-btn primary" id="authLoginBtn">Sign In</button>
     <button class="auth-btn secondary" id="authRegisterBtn">Create Account</button>
     <div class="auth-error" id="authError"></div>
-    <div class="admin-note">Admin? Use signup code <strong>ADMIN2024</strong> when registering</div>
+    <div class="admin-note" id="authToggleMode">Don't have an account? <strong>Create one</strong></div>
+    <div class="admin-note" style="margin-top:2px">Admin code for signup: <strong>ADMIN2024</strong></div>
   </div>
 </div>
 
@@ -948,6 +950,12 @@ function saveChallengeWizard(isEdit, editChallenge) {
 
 // ===== SETTINGS =====
 function showAuth() {
+  isRegisterMode = false;
+  document.getElementById('authAdminCode').style.display = 'none';
+  document.getElementById('authLoginBtn').textContent = 'Sign In';
+  document.getElementById('authRegisterBtn').textContent = 'Create Account';
+  document.getElementById('authToggleMode').innerHTML = 'Don\'t have an account? <strong>Create one</strong>';
+  document.getElementById('authError').textContent = '';
   document.getElementById('authOverlay').style.display = 'flex';
   document.querySelector('.container').style.display = 'none';
   document.querySelector('.bottom-nav').style.display = 'none';
@@ -958,23 +966,42 @@ function hideAuth() {
   document.querySelector('.bottom-nav').style.display = 'flex';
 }
 
+let isRegisterMode = false;
+document.getElementById('authToggleMode').addEventListener('click', () => {
+  isRegisterMode = !isRegisterMode;
+  document.getElementById('authAdminCode').style.display = isRegisterMode ? 'block' : 'none';
+  document.getElementById('authLoginBtn').textContent = isRegisterMode ? 'Create Account' : 'Sign In';
+  document.getElementById('authRegisterBtn').textContent = isRegisterMode ? 'Sign In' : 'Create Account';
+  document.getElementById('authToggleMode').innerHTML = isRegisterMode
+    ? 'Already have an account? <strong>Sign in</strong>'
+    : 'Don\'t have an account? <strong>Create one</strong>';
+  document.getElementById('authError').textContent = '';
+});
+
 document.getElementById('authLoginBtn').addEventListener('click', async () => {
   const u = document.getElementById('authUsername').value.trim();
   const p = document.getElementById('authPassword').value;
   const err = document.getElementById('authError');
   if (!u || !p) { err.textContent = 'Enter username and password'; return; }
-  const r = await login(u, p);
+  let r;
+  if (isRegisterMode) {
+    const code = document.getElementById('authAdminCode').value.trim();
+    r = await register(u, p, code);
+  } else {
+    r = await login(u, p);
+  }
   if (r === true) { err.textContent = ''; hideAuth(); initApp(); }
   else err.textContent = r;
 });
-document.getElementById('authRegisterBtn').addEventListener('click', async () => {
-  const u = document.getElementById('authUsername').value.trim();
-  const p = document.getElementById('authPassword').value;
-  const err = document.getElementById('authError');
-  if (!u || !p) { err.textContent = 'Enter username and password'; return; }
-  const r = await register(u, p, '');
-  if (r === true) { err.textContent = ''; hideAuth(); initApp(); }
-  else err.textContent = r;
+document.getElementById('authRegisterBtn').addEventListener('click', () => {
+  isRegisterMode = !isRegisterMode;
+  document.getElementById('authAdminCode').style.display = isRegisterMode ? 'block' : 'none';
+  document.getElementById('authLoginBtn').textContent = isRegisterMode ? 'Create Account' : 'Sign In';
+  document.getElementById('authRegisterBtn').textContent = isRegisterMode ? 'Sign In' : 'Create Account';
+  document.getElementById('authToggleMode').innerHTML = isRegisterMode
+    ? 'Already have an account? <strong>Sign in</strong>'
+    : 'Don\'t have an account? <strong>Create one</strong>';
+  document.getElementById('authError').textContent = '';
 });
 document.getElementById('authUsername').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('authPassword').focus(); });
 document.getElementById('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('authLoginBtn').click(); });
