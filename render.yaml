@@ -10,5 +10,4 @@ services:
 databases:
   - name: habit-tracker-db
     plan: free
-    databaseType: postgres
-    ipAllowList: []
+    databaseType: postgresql
