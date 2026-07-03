@@ -9,3 +9,7 @@ services:
     envVars:
       - key: MONGODB_URI
         value: your_mongodb_connection_string
+      - key: ADMIN_PASSWORD
+        value: your_admin_password
+      - key: JWT_SECRET
+        value: your_jwt_secret
