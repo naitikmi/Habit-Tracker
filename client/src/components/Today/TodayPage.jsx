@@ -8,6 +8,7 @@ import DateNav from './DateNav';
 import ScoreCard from './ScoreCard';
 import CheckList from './CheckList';
 import LeaderboardPanel from './LeaderboardPanel';
+import DiscoverPanel from './DiscoverPanel';
 import { useToast } from '../Layout/Toast';
 
 export default function TodayPage() {
@@ -21,6 +22,7 @@ export default function TodayPage() {
   const { showToast } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showDiscover, setShowDiscover] = useState(false);
 
   const entryGetter = (habitId) => {
     return (progressData[habitId] || {})[dateStrKey(currentDate)] || 0;
@@ -43,9 +45,13 @@ export default function TodayPage() {
     return (
       <div className="empty-state">
         <p style={{ fontSize: '14px', marginBottom: '6px' }}>No challenges yet</p>
-        <p style={{ fontSize: '12px', color: 'var(--text2)' }}>
-          {user?.role === 'admin' ? 'Create one in Settings' : 'Ask your admin to create one'}
+        <p style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '16px' }}>
+          Browse and follow a challenge to get started
         </p>
+        <button className="btn-discover-empty" onClick={() => setShowDiscover(true)}>
+          Browse Challenges
+        </button>
+        {showDiscover && <DiscoverPanel onClose={() => setShowDiscover(false)} onFollow={() => setShowDiscover(false)} />}
       </div>
     );
   }
@@ -74,10 +80,14 @@ export default function TodayPage() {
             activeChallenge={activeChallenge}
           />
         </div>
+        <button className="btn-leaderboard" onClick={() => setShowDiscover(true)} title="Discover">
+          🔍
+        </button>
         <button className="btn-leaderboard" onClick={() => setShowLeaderboard(true)} title="Leaderboard">
           🏆
         </button>
       </div>
+      {showDiscover && <DiscoverPanel onClose={() => setShowDiscover(false)} onFollow={() => setShowDiscover(false)} />}
       {showLeaderboard && (
         <LeaderboardPanel
           challengeId={activeChallenge.id}

@@ -80,4 +80,36 @@ router.post('/active', authMiddleware, async (req, res) => {
   }
 });
 
+// Get all challenges for discovery (defaults + all user challenges)
+router.get('/community', authMiddleware, async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const [defaults, userChallenges, active] = await Promise.all([
+      Challenge.find({ type: 'default' }).sort({ _id: 1 }).lean(),
+      Challenge.find({ type: 'user' }).populate('owner', 'username profilePicture').sort({ _id: 1 }).lean(),
+      ActiveChallenge.findOne({ user: userId })
+    ]);
+
+    const following = active ? { id: active.challengeId, source: active.source } : null;
+
+    const all = [
+      ...defaults.map(c => ({
+        id: c.id, name: c.name, days: c.days, habitsCount: c.habits.length,
+        source: 'default', creator: null,
+        following: following && following.source === 'default' && following.id === c.id
+      })),
+      ...userChallenges.map(c => ({
+        id: c.id, name: c.name, days: c.days, habitsCount: c.habits.length,
+        source: 'user', creator: c.owner ? { username: c.owner.username, profilePicture: c.owner.profilePicture || '' } : { username: 'Unknown' },
+        following: following && following.source === 'user' && following.id === c.id,
+        isOwn: c.owner && c.owner._id && String(c.owner._id) === req.user.id
+      }))
+    ];
+
+    res.json({ ok: true, data: all });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 module.exports = router;
