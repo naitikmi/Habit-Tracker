@@ -6,18 +6,21 @@ const User = require('../models/User');
 
 const router = express.Router();
 
-// GET /api/leaderboard/:challengeId
-// Returns all users who have progress for the given challenge, with scores
 router.get('/:challengeId', async (req, res) => {
   try {
     const challengeId = Number(req.params.challengeId);
+    const source = req.query.source || 'default';
     if (isNaN(challengeId)) return res.json({ ok: false, error: 'Invalid challenge ID' });
 
-    const challenge = await Challenge.findOne({ id: challengeId }).sort({ _id: -1 });
+    const query = { id: challengeId };
+    if (source === 'default') query.type = 'default';
+    else query.type = 'user';
+
+    const challenge = await Challenge.findOne(query).sort({ _id: -1 }).lean();
     if (!challenge) return res.json({ ok: false, error: 'Challenge not found' });
 
     const habitMaxSum = challenge.habits.reduce((s, h) => s + (h.maxPoints || 10), 0);
-    if (habitMaxSum === 0) return res.json({ ok: true, data: { challenge: { name: challenge.name, days: challenge.days }, entries: [], count: 0 } });
+    if (habitMaxSum === 0) return res.json({ ok: true, data: { challenge: { name: challenge.name, days: challenge.days, habitsCount: challenge.habits.length }, entries: [], count: 0 } });
 
     const progressDocs = await Progress.find({ challengeId }).lean();
 
@@ -28,7 +31,6 @@ router.get('/:challengeId', async (req, res) => {
 
       const data = doc.entries || {};
 
-      // Collect unique dates across all habits
       const dateSet = new Set();
       let totalEarned = 0;
       for (const habitId of Object.keys(data)) {

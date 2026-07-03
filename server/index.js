@@ -63,12 +63,23 @@ async function migrateFromDataStore() {
   console.log('DataStore migration complete');
 }
 
+async function backfillChallengeIds() {
+  const missing = await Challenge.find({ id: { $exists: false } });
+  for (const ch of missing) {
+    // Find highest existing id for this type to assign a new one
+    const max = await Challenge.findOne({ type: ch.type }).sort({ id: -1 }).select('id').lean();
+    ch.id = (max?.id || 0) + 1;
+    await ch.save();
+  }
+  if (missing.length) console.log(`Backfilled id for ${missing.length} challenges`);
+}
+
 async function seedDefaultChallenges() {
   const count = await Challenge.countDocuments({ type: 'default' });
   if (count > 0) return;
   const defaults = [
     {
-      name: '30-Day Fitness', days: 30, startDate: new Date().toISOString().slice(0, 10),
+      id: 1, name: '30-Day Fitness', days: 30, startDate: new Date().toISOString().slice(0, 10),
       habits: [
         { id: 1, name: 'Exercise 30 min', maxPoints: 10, color: '#ff8c42' },
         { id: 2, name: 'Drink 8 glasses water', maxPoints: 10, color: '#2ecc71' },
@@ -77,7 +88,7 @@ async function seedDefaultChallenges() {
       ], nextHabitId: 5
     },
     {
-      name: 'Mindfulness Month', days: 30, startDate: new Date().toISOString().slice(0, 10),
+      id: 2, name: 'Mindfulness Month', days: 30, startDate: new Date().toISOString().slice(0, 10),
       habits: [
         { id: 1, name: 'Meditate 10 min', maxPoints: 10, color: '#3498db' },
         { id: 2, name: 'Journal', maxPoints: 10, color: '#e91e63' },
@@ -104,6 +115,8 @@ async function start() {
   }
   console.log('Admin account ready');
 
+  // Backfill numeric id for challenges saved before schema fix
+  await backfillChallengeIds();
   // Migrate from old DataStore format if present
   await migrateFromDataStore();
   // Seed default challenges if none exist

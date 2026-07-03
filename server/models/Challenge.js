@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const challengeSchema = new mongoose.Schema({
+  id: { type: Number, required: true },
   type: { type: String, enum: ['default', 'user'], required: true },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   name: { type: String, required: true },
@@ -13,6 +14,6 @@ const challengeSchema = new mongoose.Schema({
     color: String
   }],
   nextHabitId: { type: Number, default: 1 }
-}, { timestamps: true });
+}, { timestamps: true, id: false });
 
 module.exports = mongoose.model('Challenge', challengeSchema);

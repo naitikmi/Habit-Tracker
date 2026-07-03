@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { tryFetchAPI } from '../../utils/api';
 
-export default function LeaderboardPanel({ challengeId, challengeName, onClose }) {
+export default function LeaderboardPanel({ challengeId, challengeName, challengeSource, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const r = await tryFetchAPI('/api/leaderboard/' + challengeId);
+      const r = await tryFetchAPI('/api/leaderboard/' + challengeId + '?source=' + (challengeSource || 'default'));
       if (r && r.ok) setData(r.data);
       setLoading(false);
     })();
-  }, [challengeId]);
+  }, [challengeId, challengeSource]);
 
   return (
     <>

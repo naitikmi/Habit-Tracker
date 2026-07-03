@@ -82,6 +82,7 @@ export default function TodayPage() {
         <LeaderboardPanel
           challengeId={activeChallenge.id}
           challengeName={activeChallenge.name}
+          challengeSource={activeChallenge._source}
           onClose={() => setShowLeaderboard(false)}
         />
       )}
