@@ -8,6 +8,7 @@ export default function AuthOverlay() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -74,15 +75,20 @@ export default function AuthOverlay() {
             onKeyDown={e => { if (e.key === 'Enter') document.getElementById('authPassInput')?.focus(); }}
           />
         )}
-        <input
-          id="authPassInput"
-          type="password"
-          placeholder="Password"
-          autoComplete={isRegister ? 'new-password' : 'current-password'}
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
+        <div className="pw-input-wrap">
+          <input
+            id="authPassInput"
+            type={showPw ? 'text' : 'password'}
+            placeholder="Password"
+            autoComplete={isRegister ? 'new-password' : 'current-password'}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          <button type="button" className="pw-toggle" onClick={() => setShowPw(!showPw)} tabIndex={-1}>
+            {showPw ? '🙈' : '👁️'}
+          </button>
+        </div>
         {isRegister && (
           <div className="password-reqs">
             {pwValid && pwValid.rules.map(rule => (
