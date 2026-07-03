@@ -95,9 +95,10 @@ async function start() {
   const existing = await User.findOne({ username: 'naitikmishra' });
   if (existing) {
     existing.role = 'admin';
+    if (!existing.email) existing.email = 'naitik@admin.com';
     await existing.save();
   } else {
-    await User.create({ username: 'naitikmishra', password: 'Naitik', role: 'admin' });
+    await User.create({ username: 'naitikmishra', email: 'naitik@admin.com', password: 'Naitik', role: 'admin' });
   }
   console.log('Admin account ready');
 

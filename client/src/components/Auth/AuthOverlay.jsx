@@ -6,6 +6,7 @@ export default function AuthOverlay() {
   const { loginUser, registerUser } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +19,10 @@ export default function AuthOverlay() {
       return;
     }
     if (isRegister) {
+      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setError('Enter a valid email address');
+        return;
+      }
       const v = validatePassword(password);
       if (!v.allMet) {
         setError('Password does not meet requirements');
@@ -27,7 +32,7 @@ export default function AuthOverlay() {
     setLoading(true);
     setError('');
     const result = isRegister
-      ? await registerUser(username.trim(), password)
+      ? await registerUser(username.trim(), email.trim(), password)
       : await loginUser(username.trim(), password);
     setLoading(false);
     if (!result.success) {
@@ -56,8 +61,19 @@ export default function AuthOverlay() {
           autoComplete="username"
           value={username}
           onChange={e => setUsername(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') document.getElementById('authPassInput')?.focus(); }}
+          onKeyDown={e => { if (e.key === 'Enter') isRegister ? document.getElementById('authEmailInput')?.focus() : document.getElementById('authPassInput')?.focus(); }}
         />
+        {isRegister && (
+          <input
+            id="authEmailInput"
+            type="email"
+            placeholder="Email"
+            autoComplete="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') document.getElementById('authPassInput')?.focus(); }}
+          />
+        )}
         <input
           id="authPassInput"
           type="password"

@@ -165,6 +165,36 @@ body{
 .challenge-card.active .cc-check{border-color:var(--accent);background:var(--accent);color:#fff;box-shadow:0 0 10px var(--accent-glow)}
 .challenge-card .cc-source{font-size:9px;color:var(--text3);background:var(--card2);padding:1px 6px;border-radius:6px;font-weight:600}
 
+/* ===== PROFILE ===== */
+.profile-header{display:flex;align-items:center;gap:16px;padding:18px;background:var(--card);border-radius:var(--radius);margin-bottom:10px;border:1px solid rgba(255,255,255,.03)}
+.profile-avatar-wrap{position:relative;width:64px;height:64px;border-radius:50%;overflow:hidden;cursor:pointer;flex-shrink:0}
+.profile-avatar{width:100%;height:100%;object-fit:cover}
+.profile-avatar-placeholder{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,var(--accent),#ff6b35);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff}
+.profile-avatar-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;opacity:0;transition:.2s}
+.profile-avatar-wrap:hover .profile-avatar-overlay{opacity:1}
+.profile-info{flex:1}
+.profile-info .profile-name{font-size:16px;font-weight:700}
+.profile-info .profile-role{font-size:11px;color:var(--text3);text-transform:capitalize;margin-top:1px}
+.profile-section{background:var(--card);border-radius:var(--radius);padding:16px;border:1px solid rgba(255,255,255,.03)}
+.profile-field{margin-bottom:12px}
+.profile-field label{display:block;font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.profile-field input{width:100%;padding:10px 12px;border:2px solid var(--card2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px;outline:none;transition:border-color .2s}
+.profile-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.profile-field input::placeholder{color:var(--text3);font-size:11px}
+.profile-cp-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:4px 0}
+.profile-cp-toggle .label{font-size:13px;font-weight:600}
+.profile-cp-form{margin-top:12px;padding-top:12px;border-top:1px solid var(--card2)}
+.profile-cp-error{color:var(--red);font-size:11px;margin-top:6px;font-weight:500}
+.btn-primary{width:100%;padding:12px;border:none;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--accent),#ff6b35);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:.25s;box-shadow:0 4px 15px var(--accent-glow)}
+.btn-primary:active{opacity:.85;transform:scale(.98)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-back{background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;padding:8px 0 4px;display:block;margin-bottom:4px}
+.btn-back:hover{opacity:.8}
+.profile-mini-avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,var(--accent),#ff6b35);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff}
+.profile-mini-img{width:100%;height:100%;object-fit:cover}
+.setting-row.clickable{cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:space-between}
+.setting-row.clickable:hover{border-color:rgba(255,255,255,.06)}
+
 /* ===== TOP NAV ===== */
 .bottom-nav{display:flex;background:var(--card);border-radius:var(--radius);padding:4px;margin-bottom:12px;gap:4px;border:1px solid rgba(255,255,255,.03)}
 .bottom-nav .nav-item{flex:1;padding:8px 6px;text-align:center;border:none;background:transparent;color:var(--text3);cursor:pointer;transition:.2s;font-size:11px;font-weight:600;border-radius:var(--radius-sm);position:relative}
@@ -271,6 +301,12 @@ body{
   .auth-box{padding:24px 16px;margin:0 4px}
   .auth-box h2{font-size:20px}
   .auth-box input{padding:10px 12px;font-size:13px}
+  .profile-header{padding:14px;gap:12px}
+  .profile-avatar-wrap{width:52px;height:52px}
+  .profile-avatar-placeholder{font-size:22px}
+  .profile-info .profile-name{font-size:14px}
+  .profile-section{padding:12px}
+  .profile-mini-avatar{width:34px;height:34px;font-size:14px}
   .wizard{padding:18px}
   .wizard h2{font-size:16px}
   .wizard .wh-row{flex-wrap:wrap;gap:6px}

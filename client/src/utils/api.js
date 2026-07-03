@@ -43,11 +43,11 @@ export async function login(username, password) {
   return { success: false, error: r ? r.error : 'Server error' };
 }
 
-export async function register(username, password) {
+export async function register(username, email, password) {
   const r = await tryFetchAPI('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, email, password })
   });
   if (r && r.ok) {
     setToken(r.token);
@@ -135,4 +135,23 @@ export async function saveUserChallenges(data) {
     headers: authHeaders(),
     body: JSON.stringify({ data })
   });
+}
+
+export async function updateProfile(data) {
+  const r = await tryFetchAPI('/api/auth/profile', {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(data)
+  });
+  return r && r.ok ? r.user : null;
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  const r = await tryFetchAPI('/api/auth/password', {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ currentPassword, newPassword })
+  });
+  if (r && r.ok) return { success: true };
+  return { success: false, error: r ? r.error : 'Server error' };
 }

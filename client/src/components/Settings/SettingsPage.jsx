@@ -3,8 +3,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { saveDefaultsToServer, saveUserChallenges } from '../../utils/api';
-import { THEMES, THEME_KEY } from '../../themes';
+import { THEMES } from '../../themes';
 import ChallengeWizard from './ChallengeWizard';
+import ProfilePage from './ProfilePage';
 import { useToast } from '../Layout/Toast';
 
 export default function SettingsPage() {
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const [showWizard, setShowWizard] = useState(null);
   const [editChallenge, setEditChallenge] = useState(null);
   const [showThemePanel, setShowThemePanel] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   const handleEdit = (challenge, source) => {
     setEditChallenge(challenge);
@@ -71,23 +73,42 @@ export default function SettingsPage() {
     );
   }
 
+  if (showProfile) {
+    return (
+      <>
+        <button className="btn-back" onClick={() => setShowProfile(false)}>← Back to Settings</button>
+        <ProfilePage />
+      </>
+    );
+  }
+
   const defaults = (defaultsData && defaultsData.challenges) || [];
   const myChallenges = (userChallengesData && userChallengesData.challenges) || [];
 
   return (
     <div>
-      <div className="setting-row">
-        <div>
-          <div className="label">Account</div>
-          <div className="desc">Signed in as <strong>{user?.username}</strong> ({user?.role})</div>
+      <div className="setting-row clickable" onClick={() => setShowProfile(true)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="profile-mini-avatar">
+            {user?.profilePicture ? (
+              <img src={user.profilePicture} alt="" className="profile-mini-img" />
+            ) : (
+              <span>{(user?.username || '?')[0].toUpperCase()}</span>
+            )}
+          </div>
+          <div>
+            <div className="label">{user?.username}</div>
+            <div className="desc">{user?.email || 'No email'} · {user?.role}</div>
+          </div>
         </div>
+        <span style={{ color: 'var(--text3)', fontSize: '14px' }}>→</span>
       </div>
 
       {user?.role === 'admin' && (
         <>
           {defaults.length > 0 && (
             <>
-              <div className="setting-row">
+              <div className="setting-row" style={{ marginTop: '10px' }}>
                 <div>
                   <div className="label">Default Challenges</div>
                   <div className="desc">Tap to edit, visible to all users</div>
@@ -104,7 +125,7 @@ export default function SettingsPage() {
                     >
                       <div className="cc-info">
                         <div className="cc-name">{c.name}</div>
-                        <div className="cc-sub">{c.days} days &middot; {c.habits.length} habits</div>
+                        <div className="cc-sub">{c.days} days · {c.habits.length} habits</div>
                       </div>
                       <div className="cc-check">{isActive ? '✓' : ''}</div>
                     </div>
@@ -146,7 +167,7 @@ export default function SettingsPage() {
                 >
                   <div className="cc-info">
                     <div className="cc-name">{c.name}</div>
-                    <div className="cc-sub">{c.days} days &middot; {c.habits.length} habits</div>
+                    <div className="cc-sub">{c.days} days · {c.habits.length} habits</div>
                   </div>
                   <div className="cc-check">{isActive ? '✓' : ''}</div>
                 </div>
