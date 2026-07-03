@@ -173,7 +173,7 @@ export default function ChartsPage() {
   }
 
   return (
-    <div>
+    <div className="charts-page">
       <div className="chart-section">
         <h3>Points Earned</h3>
         <div className="chart-box">

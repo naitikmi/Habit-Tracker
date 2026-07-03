@@ -32,10 +32,12 @@ function AppContent() {
   };
 
   return (
-    <div className="container">
+    <div className="app-layout">
       <Header />
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-      {renderPage()}
+      <div className="page-content">
+        {renderPage()}
+      </div>
     </div>
   );
 }
