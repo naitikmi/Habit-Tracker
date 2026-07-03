@@ -189,6 +189,9 @@ body{
 .auth-box .auth-toggle{font-size:11px;color:var(--text3);margin-top:12px;cursor:pointer}
 .auth-box .auth-toggle:hover{color:var(--accent)}
 .auth-box .admin-note{font-size:10px;color:var(--text3);margin-top:6px}
+.auth-box .password-reqs{text-align:left;font-size:10px;margin:-2px 0 6px;padding:0}
+.auth-box .password-reqs .req{color:var(--text3);padding:1px 0;transition:color .2s}
+.auth-box .password-reqs .req.met{color:var(--green)}
 
 @media(max-width:400px){
   .container{padding:8px 10px}
@@ -207,6 +210,13 @@ body{
     <div class="sub">Sign in to continue</div>
     <input type="text" id="authUsername" placeholder="Username" maxlength="30" autocomplete="username">
     <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
+    <div class="password-reqs" id="passwordReqs" style="display:none">
+      <div class="req" data-req="length">At least 8 characters</div>
+      <div class="req" data-req="upper">One uppercase letter</div>
+      <div class="req" data-req="lower">One lowercase letter</div>
+      <div class="req" data-req="number">One number</div>
+      <div class="req" data-req="special">One special character (e.g. !@#$%)</div>
+    </div>
     <button class="auth-btn primary" id="authLoginBtn">Sign In</button>
     <button class="auth-btn secondary" id="authRegisterBtn">Create Account</button>
     <div class="auth-error" id="authError"></div>
@@ -313,6 +323,7 @@ const TOKEN_KEY = 'challengeToken';
 let mainChart = null, currentPeriod = 'daily', calDate = new Date(), currentDate = new Date();
 let user = null;
 let defaultsData = null; // admin challenges (shared)
+let userChallengesData = null; // user's own challenges
 let progressData = {};   // user entries { habitId: { "date": 1 } }
 
 function tryFetchAPI(path, opts) {
@@ -335,7 +346,7 @@ async function register(username, password) {
   if (r && r.ok) { localStorage.setItem(TOKEN_KEY, r.token); user = r.user; return true; }
   return r ? r.error : 'Server error';
 }
-function logout() { localStorage.removeItem(TOKEN_KEY); user = null; defaultsData = null; progressData = {}; showAuth(); }
+function logout() { localStorage.removeItem(TOKEN_KEY); user = null; defaultsData = null; userChallengesData = null; progressData = {}; showAuth(); }
 async function checkAuth() {
   const t = localStorage.getItem(TOKEN_KEY);
   if (!t) return false;
@@ -360,21 +371,59 @@ async function saveDefaultsToServer() {
   await tryFetchAPI('/api/default-challenges', { method:'POST', headers:authHeaders(), body:JSON.stringify({data:defaultsData}) });
 }
 
+async function loadUserChallenges() {
+  const r = await tryFetchAPI('/api/user-challenges', { headers: authHeaders() });
+  if (r && r.ok && r.data) userChallengesData = r.data; else userChallengesData = null;
+}
+async function saveUserChallenges() {
+  await tryFetchAPI('/api/user-challenges', { method:'POST', headers:authHeaders(), body:JSON.stringify({data:userChallengesData}) });
+}
+
+function validatePassword(password) {
+  const rules = [
+    { key:'length', test: password.length >= 8 },
+    { key:'upper', test: /[A-Z]/.test(password) },
+    { key:'lower', test: /[a-z]/.test(password) },
+    { key:'number', test: /[0-9]/.test(password) },
+    { key:'special', test: /[^A-Za-z0-9]/.test(password) }
+  ];
+  const allMet = rules.every(r => r.test);
+  document.querySelectorAll('.password-reqs .req').forEach(el => {
+    const rule = rules.find(r => r.key === el.dataset.req);
+    if (rule) el.classList.toggle('met', rule.test);
+  });
+  return allMet;
+}
+
 async function initApp() {
   if (!await checkAuth()) { showAuth(); return; }
   await loadDefaults();
+  await loadUserChallenges();
   await loadProgress();
   renderAll();
 }
 
 // ===== HELPERS =====
 function getChallenges() {
-  return (defaultsData && defaultsData.challenges) || [];
+  const defaults = (defaultsData && defaultsData.challenges) || [];
+  const users = (userChallengesData && userChallengesData.challenges) || [];
+  return [
+    ...defaults.map(c => ({ ...c, _source:'default' })),
+    ...users.map(c => ({ ...c, _source:'user' }))
+  ];
 }
 function getActiveChallenge() {
   const list = getChallenges();
-  if (!list.length || !defaultsData || !defaultsData.activeChallengeId) return null;
-  return list.find(c => c.id === defaultsData.activeChallengeId) || list[0] || null;
+  if (!list.length) return null;
+  if (defaultsData && defaultsData.activeChallengeId) {
+    const f = list.find(c => c._source === 'default' && c.id === defaultsData.activeChallengeId);
+    if (f) return f;
+  }
+  if (userChallengesData && userChallengesData.activeChallengeId) {
+    const f = list.find(c => c._source === 'user' && c.id === userChallengesData.activeChallengeId);
+    if (f) return f;
+  }
+  return list[0] || null;
 }
 function getActiveHabits() {
   const c = getActiveChallenge(); return c ? c.habits : [];
@@ -448,7 +497,11 @@ function renderToday() {
     <span class="cs-label">Challenge:</span>
     <select id="challengeSelect">`;
   getChallenges().forEach(c => {
-    html += `<option value="${c.id}" ${c.id === defaultsData.activeChallengeId ? 'selected' : ''}>${escHtml(c.name)}</option>`;
+    const val = c._source + ':' + c.id;
+    const isActive = (c._source === 'default' && c.id === (defaultsData ? defaultsData.activeChallengeId : null)) ||
+                     (c._source === 'user' && c.id === (userChallengesData ? userChallengesData.activeChallengeId : null));
+    const prefix = c._source === 'user' ? '👤 ' : '';
+    html += `<option value="${val}" ${isActive ? 'selected' : ''}>${prefix}${escHtml(c.name)}</option>`;
   });
   html += `</select></div>`;
 
@@ -540,9 +593,17 @@ function bindTodayEvents() {
   if (next) next.addEventListener('click', ()=>{ currentDate.setDate(currentDate.getDate()+1); renderToday(); });
   const sel = document.getElementById('challengeSelect');
   if (sel) sel.addEventListener('change', function() {
-    defaultsData.activeChallengeId = Number(this.value);
+    const [source, idStr] = this.value.split(':');
+    const id = Number(idStr);
+    if (source === 'default') {
+      if (defaultsData) defaultsData.activeChallengeId = id;
+      saveDefaultsToServer();
+    } else {
+      if (userChallengesData) userChallengesData.activeChallengeId = id;
+      saveUserChallenges();
+    }
     currentDate = new Date();
-    saveDefaultsToServer(); renderToday();
+    renderToday();
   });
 }
 
@@ -855,11 +916,12 @@ document.querySelectorAll('.btn-period').forEach(btn => {
   });
 });
 
-// ===== WIZARD (admin) =====
-function renderChallengeWizard(container, editChallenge) {
+// ===== WIZARD =====
+function renderChallengeWizard(container, editChallenge, source) {
   const isEdit = !!editChallenge;
+  const title = isEdit ? 'Edit Challenge' : (source === 'user' ? 'Create My Challenge' : 'Create Default Challenge');
   container.innerHTML = `<div class="wizard">
-    <h2>${isEdit ? 'Edit Challenge' : 'Create Default Challenge'}</h2>
+    <h2>${title}</h2>
     <label>Challenge Name</label>
     <input type="text" id="wizName" value="${isEdit ? escHtml(editChallenge.name) : 'My 30-Day Challenge'}" maxlength="50">
     <label>Duration (days)</label>
@@ -883,7 +945,7 @@ function renderChallengeWizard(container, editChallenge) {
   }
 
   document.getElementById('wizAddHabit').addEventListener('click', ()=>addWizHabitRow());
-  document.getElementById('wizSave').addEventListener('click', ()=>saveChallengeWizard(isEdit, editChallenge));
+  document.getElementById('wizSave').addEventListener('click', ()=>saveChallengeWizard(isEdit, editChallenge, source));
   document.getElementById('wizCancel').addEventListener('click', ()=>renderSettings());
 }
 
@@ -902,7 +964,7 @@ function addWizHabitRow(name, pts) {
   list.appendChild(div);
 }
 
-function saveChallengeWizard(isEdit, editChallenge) {
+function saveChallengeWizard(isEdit, editChallenge, source) {
   const name = document.getElementById('wizName').value.trim();
   if (!name) { showToast('Enter a challenge name'); return; }
   const days = parseInt(document.getElementById('wizDays').value);
@@ -919,9 +981,15 @@ function saveChallengeWizard(isEdit, editChallenge) {
     colorIdx++;
   }
 
-  if (!defaultsData) defaultsData = { challenges: [], activeChallengeId: null, nextChallengeId: 1 };
-  if (!defaultsData.challenges) defaultsData.challenges = [];
-  if (!defaultsData.nextChallengeId) defaultsData.nextChallengeId = (defaultsData.challenges.length || 0) + 1;
+  const store = source === 'user' ? 'userChallengesData' : 'defaultsData';
+  const data = source === 'user' ? userChallengesData : defaultsData;
+  let target = data;
+  if (!target) {
+    target = { challenges: [], activeChallengeId: null, nextChallengeId: 1 };
+    if (source === 'user') userChallengesData = target; else defaultsData = target;
+  }
+  if (!target.challenges) target.challenges = [];
+  if (!target.nextChallengeId) target.nextChallengeId = (target.challenges.length || 0) + 1;
 
   if (isEdit && editChallenge) {
     editChallenge.name = name;
@@ -930,12 +998,12 @@ function saveChallengeWizard(isEdit, editChallenge) {
     editChallenge.habits = habits;
     editChallenge.nextHabitId = habits.length + 1;
   } else {
-    const newId = defaultsData.nextChallengeId++;
-    defaultsData.challenges.push({ id: newId, name, days, startDate: start, habits, nextHabitId: habits.length + 1 });
-    defaultsData.activeChallengeId = newId;
+    const newId = target.nextChallengeId++;
+    target.challenges.push({ id: newId, name, days, startDate: start, habits, nextHabitId: habits.length + 1 });
+    target.activeChallengeId = newId;
   }
   currentDate = new Date();
-  saveDefaultsToServer();
+  if (source === 'user') saveUserChallenges(); else saveDefaultsToServer();
   switchPage('today');
   showToast(isEdit ? 'Challenge updated!' : 'Challenge created!');
 }
@@ -947,6 +1015,8 @@ function showAuth() {
   document.getElementById('authRegisterBtn').textContent = 'Create Account';
   document.getElementById('authToggleMode').innerHTML = 'Don\'t have an account? <strong>Create one</strong>';
   document.getElementById('authError').textContent = '';
+  document.getElementById('passwordReqs').style.display = 'none';
+  document.getElementById('authPassword').value = '';
   document.getElementById('authOverlay').style.display = 'flex';
   document.querySelector('.container').style.display = 'none';
   document.querySelector('.bottom-nav').style.display = 'none';
@@ -966,6 +1036,7 @@ document.getElementById('authToggleMode').addEventListener('click', () => {
     ? 'Already have an account? <strong>Sign in</strong>'
     : 'Don\'t have an account? <strong>Create one</strong>';
   document.getElementById('authError').textContent = '';
+  document.getElementById('passwordReqs').style.display = isRegisterMode ? 'block' : 'none';
 });
 
 document.getElementById('authLoginBtn').addEventListener('click', async () => {
@@ -973,6 +1044,7 @@ document.getElementById('authLoginBtn').addEventListener('click', async () => {
   const p = document.getElementById('authPassword').value;
   const err = document.getElementById('authError');
   if (!u || !p) { err.textContent = 'Enter username and password'; return; }
+  if (isRegisterMode && !validatePassword(p)) { err.textContent = 'Password does not meet requirements'; return; }
   const r = isRegisterMode ? await register(u, p) : await login(u, p);
   if (r === true) { err.textContent = ''; hideAuth(); initApp(); }
   else err.textContent = r;
@@ -988,6 +1060,9 @@ document.getElementById('authRegisterBtn').addEventListener('click', () => {
 });
 document.getElementById('authUsername').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('authPassword').focus(); });
 document.getElementById('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('authLoginBtn').click(); });
+document.getElementById('authPassword').addEventListener('input', () => {
+  if (isRegisterMode) validatePassword(document.getElementById('authPassword').value);
+});
 
 function renderSettings() {
   const container = document.getElementById('settingsContent');
@@ -996,14 +1071,15 @@ function renderSettings() {
     <div><div class="label">Account</div><div class="desc">Signed in as <strong>${escHtml(user.username)}</strong> (${user.role})</div></div>
   </div>`;
 
+  // Default Challenges (admin only)
   if (user.role === 'admin') {
-    const challenges = getChallenges();
-    if (challenges.length) {
+    const defaults = (defaultsData && defaultsData.challenges) || [];
+    if (defaults.length) {
       html += `<div class="setting-row"><div><div class="label">Default Challenges</div><div class="desc">Tap to edit, visible to all users</div></div></div>
       <div class="challenge-list">`;
-      challenges.forEach(c => {
+      defaults.forEach(c => {
         const isActive = c.id === (defaultsData ? defaultsData.activeChallengeId : null);
-        html += `<div class="challenge-card ${isActive?'active':''}" data-id="${c.id}">
+        html += `<div class="challenge-card ${isActive?'active':''}" data-id="${c.id}" data-source="default">
           <div class="cc-info">
             <div class="cc-name">${escHtml(c.name)}</div>
             <div class="cc-sub">${c.days} days &middot; ${c.habits.length} habits</div>
@@ -1020,32 +1096,56 @@ function renderSettings() {
     html += `<button class="btn-secondary" id="addChallengeBtn" style="width:100%;margin-bottom:10px">+ Create Default Challenge</button>`;
   }
 
-  html += `<button class="btn-danger" id="logoutBtn" style="width:100%">Sign Out</button>`;
+  // My Challenges (all users)
+  const myChallenges = (userChallengesData && userChallengesData.challenges) || [];
+  if (myChallenges.length) {
+    html += `<div class="setting-row" style="margin-top:10px"><div><div class="label">My Challenges</div><div class="desc">Your personal challenges</div></div></div>
+    <div class="challenge-list">`;
+    myChallenges.forEach(c => {
+      const isActive = c.id === (userChallengesData ? userChallengesData.activeChallengeId : null);
+      html += `<div class="challenge-card ${isActive?'active':''}" data-id="${c.id}" data-source="user">
+        <div class="cc-info">
+          <div class="cc-name">${escHtml(c.name)}</div>
+          <div class="cc-sub">${c.days} days &middot; ${c.habits.length} habits</div>
+        </div>
+        <div class="cc-check">${isActive?'✓':''}</div>
+      </div>`;
+    });
+    html += `</div>`;
+    html += `<div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn-secondary" id="editMyBtn" style="flex:1">Edit</button>
+      <button class="btn-danger" id="deleteMyBtn">Delete</button>
+    </div>`;
+  }
+  html += `<button class="btn-secondary" id="addMyChallengeBtn" style="width:100%;margin-bottom:10px">+ Create My Challenge</button>`;
+
+  html += `<button class="btn-danger" id="logoutBtn" style="width:100%;margin-top:10px">Sign Out</button>`;
 
   container.innerHTML = html;
 
+  // Admin default challenges handlers
   if (user.role === 'admin') {
-    document.querySelectorAll('.challenge-card').forEach(el => {
+    document.querySelectorAll('.challenge-card[data-source="default"]').forEach(el => {
       el.addEventListener('click', function() {
         const id = Number(this.dataset.id);
-        const ch = getChallenges().find(c => c.id === id);
-        if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch); }
+        const ch = (defaultsData && defaultsData.challenges || []).find(c => c.id === id);
+        if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch, 'default'); }
       });
     });
     document.getElementById('addChallengeBtn').addEventListener('click', ()=>{
       container.innerHTML = '';
-      renderChallengeWizard(container, null);
+      renderChallengeWizard(container, null, 'default');
     });
     const editBtn = document.getElementById('editActiveBtn');
     if (editBtn) editBtn.addEventListener('click', ()=>{
       const ch = getActiveChallenge();
-      if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch); }
-      else showToast('No challenge selected');
+      if (ch && ch._source === 'default') { container.innerHTML = ''; renderChallengeWizard(container, defaultsData.challenges.find(c => c.id === ch.id), 'default'); }
+      else showToast('No default challenge selected');
     });
     const delBtn = document.getElementById('deleteActiveBtn');
     if (delBtn) delBtn.addEventListener('click', ()=>{
       const ch = getActiveChallenge();
-      if (!ch) return;
+      if (!ch || ch._source !== 'default') { showToast('No default challenge selected'); return; }
       if (!confirm(`Delete "${ch.name}"? Users will lose access.`)) return;
       defaultsData.challenges = defaultsData.challenges.filter(c => c.id !== ch.id);
       if (defaultsData.activeChallengeId === ch.id) {
@@ -1055,6 +1155,37 @@ function renderSettings() {
       showToast('Challenge deleted');
     });
   }
+
+  // My Challenges handlers
+  document.querySelectorAll('.challenge-card[data-source="user"]').forEach(el => {
+    el.addEventListener('click', function() {
+      const id = Number(this.dataset.id);
+      const ch = (userChallengesData && userChallengesData.challenges || []).find(c => c.id === id);
+      if (ch) { container.innerHTML = ''; renderChallengeWizard(container, ch, 'user'); }
+    });
+  });
+  document.getElementById('addMyChallengeBtn').addEventListener('click', ()=>{
+    container.innerHTML = '';
+    renderChallengeWizard(container, null, 'user');
+  });
+  const editMyBtn = document.getElementById('editMyBtn');
+  if (editMyBtn) editMyBtn.addEventListener('click', ()=>{
+    const ch = getActiveChallenge();
+    if (ch && ch._source === 'user') { container.innerHTML = ''; renderChallengeWizard(container, userChallengesData.challenges.find(c => c.id === ch.id), 'user'); }
+    else showToast('No personal challenge selected');
+  });
+  const delMyBtn = document.getElementById('deleteMyBtn');
+  if (delMyBtn) delMyBtn.addEventListener('click', ()=>{
+    const ch = getActiveChallenge();
+    if (!ch || ch._source !== 'user') { showToast('No personal challenge selected'); return; }
+    if (!confirm(`Delete "${ch.name}"?`)) return;
+    userChallengesData.challenges = userChallengesData.challenges.filter(c => c.id !== ch.id);
+    if (userChallengesData.activeChallengeId === ch.id) {
+      userChallengesData.activeChallengeId = userChallengesData.challenges.length ? userChallengesData.challenges[0].id : null;
+    }
+    saveUserChallenges(); renderSettings(); renderAll();
+    showToast('Challenge deleted');
+  });
 
   document.getElementById('logoutBtn').addEventListener('click', ()=>{ logout(); });
 }

@@ -117,6 +117,15 @@ app.post('/api/auth/register', async (req, res) => {
     if (!username || !password || username.length < 3) {
       return res.json({ ok: false, error: 'Username (min 3 chars) and password required' });
     }
+    const pwErrors = [];
+    if (password.length < 8) pwErrors.push('at least 8 characters');
+    if (!/[A-Z]/.test(password)) pwErrors.push('one uppercase letter');
+    if (!/[a-z]/.test(password)) pwErrors.push('one lowercase letter');
+    if (!/[0-9]/.test(password)) pwErrors.push('one number');
+    if (!/[^A-Za-z0-9]/.test(password)) pwErrors.push('one special character');
+    if (pwErrors.length) {
+      return res.json({ ok: false, error: 'Password must have: ' + pwErrors.join(', ') });
+    }
     const hash = await bcrypt.hash(password, 10);
     if (pool) {
       await pool.query("INSERT INTO users (username, password, role) VALUES ($1, $2, 'user')", [username, hash]);
@@ -187,6 +196,21 @@ app.get('/api/progress', authMiddleware, async (req, res) => {
 app.post('/api/progress', authMiddleware, async (req, res) => {
   try {
     await saveData('progress_' + req.user.id, req.body.data);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ===== USER CHALLENGES =====
+app.get('/api/user-challenges', authMiddleware, async (req, res) => {
+  const data = await loadData('user_challenges_' + req.user.id);
+  res.json({ ok: true, data });
+});
+
+app.post('/api/user-challenges', authMiddleware, async (req, res) => {
+  try {
+    await saveData('user_challenges_' + req.user.id, req.body.data);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
