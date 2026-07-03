@@ -112,4 +112,24 @@ router.get('/community', authMiddleware, async (req, res) => {
   }
 });
 
+// Get ALL challenges (defaults + all user challenges) with full details for dropdown
+router.get('/all', authMiddleware, async (req, res) => {
+  try {
+    const [defaults, userChallenges] = await Promise.all([
+      Challenge.find({ type: 'default' }).sort({ _id: 1 }).lean(),
+      Challenge.find({ type: 'user' }).populate('owner', 'username').sort({ _id: 1 }).lean()
+    ]);
+
+    const all = [
+      ...defaults.map(c => ({ ...c, _source: 'default' })),
+      ...userChallenges.map(c => ({ ...c, _source: 'user', creatorName: c.owner?.username || 'Unknown' }))
+    ];
+
+    const maxId = all.reduce((m, c) => Math.max(m, c.id || 0), 0);
+    res.json({ ok: true, data: { challenges: all, nextChallengeId: maxId + 1 } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 module.exports = router;

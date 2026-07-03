@@ -13,8 +13,6 @@ import { useToast } from '../Layout/Toast';
 
 export default function TodayPage() {
   const {
-    defaultsData, setDefaultsData,
-    userChallengesData, setUserChallengesData,
     progressData, setProgressData,
     activeChallenge, habits
   } = useData();
@@ -63,13 +61,7 @@ export default function TodayPage() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-        <ChallengeSelector
-          defaultsData={defaultsData}
-          setDefaultsData={setDefaultsData}
-          userChallengesData={userChallengesData}
-          setUserChallengesData={setUserChallengesData}
-          onChange={handleChallengeChange}
-        />
+        <ChallengeSelector onChange={handleChallengeChange} />
         <span className="day-badge">Day {todayNum} of {activeChallenge.days}</span>
       </div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>

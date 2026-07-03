@@ -85,18 +85,32 @@ export function validatePassword(password) {
   return { rules, allMet };
 }
 
-export function getChallenges(defaultsData, userChallengesData) {
+export function getChallenges(defaultsData, userChallengesData, allChallengesData) {
   const defaults = (defaultsData && defaultsData.challenges) || [];
   const users = (userChallengesData && userChallengesData.challenges) || [];
-  return [
-    ...defaults.map(c => ({ ...c, _source: 'default' })),
-    ...users.map(c => ({ ...c, _source: 'user' }))
-  ];
+  const all = (allChallengesData && allChallengesData.challenges) || [];
+  const seen = new Set();
+  const merged = [];
+  for (const c of defaults) { merged.push({ ...c, _source: 'default' }); seen.add('default:' + c.id); }
+  for (const c of users) { merged.push({ ...c, _source: 'user' }); seen.add('user:' + c.id); }
+  for (const c of all) {
+    const key = (c._source || 'unknown') + ':' + c.id;
+    if (!seen.has(key)) {
+      merged.push({ ...c, _source: c._source || 'community' });
+      seen.add(key);
+    }
+  }
+  return merged;
 }
 
-export function getActiveChallenge(defaultsData, userChallengesData) {
-  const list = getChallenges(defaultsData, userChallengesData);
+export function getActiveChallenge(defaultsData, userChallengesData, allChallengesData) {
+  const list = getChallenges(defaultsData, userChallengesData, allChallengesData);
   if (!list.length) return null;
+  // Check active in allChallengesData first (most complete source)
+  if (allChallengesData && allChallengesData.activeChallengeId && allChallengesData.activeSource) {
+    const f = list.find(c => c._source === allChallengesData.activeSource && c.id === allChallengesData.activeChallengeId);
+    if (f) return f;
+  }
   if (defaultsData && defaultsData.activeChallengeId) {
     const f = list.find(c => c._source === 'default' && c.id === defaultsData.activeChallengeId);
     if (f) return f;
@@ -108,8 +122,8 @@ export function getActiveChallenge(defaultsData, userChallengesData) {
   return list[0] || null;
 }
 
-export function getActiveHabits(defaultsData, userChallengesData) {
-  const c = getActiveChallenge(defaultsData, userChallengesData);
+export function getActiveHabits(defaultsData, userChallengesData, allChallengesData) {
+  const c = getActiveChallenge(defaultsData, userChallengesData, allChallengesData);
   return c ? c.habits : [];
 }
 

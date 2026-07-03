@@ -1,38 +1,45 @@
 import React from 'react';
 import { getChallenges } from '../../utils/helpers';
 import { saveActiveChallenge } from '../../utils/api';
+import { useData } from '../../contexts/DataContext';
 
-export default function ChallengeSelector({ defaultsData, setDefaultsData, userChallengesData, setUserChallengesData, onChange }) {
-  const challenges = getChallenges(defaultsData, userChallengesData);
+export default function ChallengeSelector({ onChange }) {
+  const { defaultsData, setDefaultsData, userChallengesData, setUserChallengesData, allChallengesData, setAllChallengesData } = useData();
+  const challenges = getChallenges(defaultsData, userChallengesData, allChallengesData);
 
-  const activeId = defaultsData?.activeChallengeId || userChallengesData?.activeChallengeId || null;
-  const activeSource = defaultsData?.activeChallengeId ? 'default' : userChallengesData?.activeChallengeId ? 'user' : null;
+  const activeId = allChallengesData?.activeChallengeId || defaultsData?.activeChallengeId || userChallengesData?.activeChallengeId || null;
+  const activeSource = allChallengesData?.activeSource || defaultsData?.activeChallengeId ? 'default' : userChallengesData?.activeChallengeId ? 'user' : null;
   const selectValue = activeSource && activeId ? activeSource + ':' + activeId : '';
 
   const handleChange = async (e) => {
     const [source, idStr] = e.target.value.split(':');
     const id = Number(idStr);
+
+    // Update all sources to track active challenge
+    if (allChallengesData) {
+      const updated = { ...allChallengesData, activeChallengeId: id, activeSource: source };
+      setAllChallengesData(updated);
+    }
     if (source === 'default') {
       const dd = { ...(defaultsData || { challenges: [], activeChallengeId: null, nextChallengeId: 1 }), activeChallengeId: id };
-      if (!dd.challenges) dd.challenges = [];
       setDefaultsData(dd);
-      if (userChallengesData) {
-        setUserChallengesData({ ...userChallengesData, activeChallengeId: null });
-      }
-      await saveActiveChallenge(id, 'default');
+      if (userChallengesData) setUserChallengesData({ ...userChallengesData, activeChallengeId: null });
     } else {
       const uc = { ...(userChallengesData || { challenges: [], activeChallengeId: null, nextChallengeId: 1 }), activeChallengeId: id };
-      if (!uc.challenges) uc.challenges = [];
       setUserChallengesData(uc);
-      if (defaultsData) {
-        setDefaultsData({ ...defaultsData, activeChallengeId: null });
-      }
-      await saveActiveChallenge(id, 'user');
+      if (defaultsData) setDefaultsData({ ...defaultsData, activeChallengeId: null });
     }
+    await saveActiveChallenge(id, source);
     if (onChange) onChange();
   };
 
   if (!challenges.length) return null;
+
+  const getLabel = (c) => {
+    if (c._source === 'default') return '';
+    if (c._source === 'user' && c.creatorName) return '👤 ' + c.creatorName;
+    return '👤 ';
+  };
 
   return (
     <div className="challenge-selector">
@@ -41,10 +48,9 @@ export default function ChallengeSelector({ defaultsData, setDefaultsData, userC
         <select value={selectValue} onChange={handleChange}>
           {challenges.map(c => {
             const val = c._source + ':' + c.id;
-            const prefix = c._source === 'user' ? '👤 ' : '';
             return (
               <option key={val} value={val}>
-                {prefix}{c.name}
+                {getLabel(c)}{c.name}
               </option>
             );
           })}
