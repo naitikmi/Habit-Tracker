@@ -91,8 +91,8 @@ export default function AuthOverlay() {
         <div className="auth-error">{error}</div>
         <div className="auth-toggle" onClick={toggleMode}>
           {isRegister
-            ? 'Already have an account? <strong>Sign in</strong>'
-            : "Don't have an account? <strong>Create one</strong>"}
+            ? <>Already have an account? <strong>Sign in</strong></>
+            : <>Don't have an account? <strong>Create one</strong></>}
         </div>
         {isRegister && <div className="admin-note">Admins can create default challenges</div>}
       </div>

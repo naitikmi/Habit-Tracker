@@ -72,13 +72,13 @@ export async function checkAuth() {
 }
 
 export async function loadDefaults() {
-  const r = await tryFetchAPI('/api/default-challenges');
+  const r = await tryFetchAPI('/api/challenges/default');
   if (r && r.ok && r.data) return r.data;
   return null;
 }
 
 export async function loadUserChallenges() {
-  const r = await tryFetchAPI('/api/user-challenges', { headers: authHeaders() });
+  const r = await tryFetchAPI('/api/challenges/user', { headers: authHeaders() });
   if (r && r.ok && r.data) return r.data;
   return null;
 }
@@ -98,7 +98,7 @@ export async function saveProgress(data) {
 }
 
 export async function saveDefaultsToServer(data) {
-  await tryFetchAPI('/api/default-challenges', {
+  await tryFetchAPI('/api/challenges/default', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ data })
@@ -106,7 +106,7 @@ export async function saveDefaultsToServer(data) {
 }
 
 export async function saveUserChallenges(data) {
-  await tryFetchAPI('/api/user-challenges', {
+  await tryFetchAPI('/api/challenges/user', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ data })
