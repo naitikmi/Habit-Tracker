@@ -71,16 +71,40 @@ export async function checkAuth() {
   return null;
 }
 
+// Load defaults — server returns { challenges: [...], nextChallengeId }
+// We merge with active challenge selection
 export async function loadDefaults() {
   const r = await tryFetchAPI('/api/challenges/default');
-  if (r && r.ok && r.data) return r.data;
+  if (r && r.ok && r.data) {
+    const result = r.data;
+    result.activeChallengeId = null; // will be set by loadActiveChallenge
+    return result;
+  }
   return null;
 }
 
 export async function loadUserChallenges() {
   const r = await tryFetchAPI('/api/challenges/user', { headers: authHeaders() });
+  if (r && r.ok && r.data) {
+    const result = r.data;
+    result.activeChallengeId = null;
+    return result;
+  }
+  return null;
+}
+
+export async function loadActiveChallenge() {
+  const r = await tryFetchAPI('/api/challenges/active', { headers: authHeaders() });
   if (r && r.ok && r.data) return r.data;
   return null;
+}
+
+export async function saveActiveChallenge(challengeId, source) {
+  await tryFetchAPI('/api/challenges/active', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ challengeId, source })
+  });
 }
 
 export async function loadProgress() {

@@ -1,43 +1,59 @@
 const express = require('express');
-const DataStore = require('../models/DataStore');
+const mongoose = require('mongoose');
+const Challenge = require('../models/Challenge');
+const ActiveChallenge = require('../models/ActiveChallenge');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get default challenges (public)
+// Get default challenges (public) — returns as { challenges, nextChallengeId }
 router.get('/default', async (req, res) => {
-  const doc = await DataStore.findOne({ key: 'default_challenges' });
-  res.json({ ok: true, data: doc ? doc.value : null });
+  const challenges = await Challenge.find({ type: 'default' }).sort({ _id: 1 }).lean();
+  const maxId = challenges.reduce((m, c) => Math.max(m, c.id || 0), 0);
+  res.json({ ok: true, data: { challenges, nextChallengeId: maxId + 1 } });
 });
 
-// Save default challenges (admin only)
+// Save/replace default challenges (admin only)
 router.post('/default', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    await DataStore.findOneAndUpdate(
-      { key: 'default_challenges' },
-      { value: req.body.data },
-      { upsert: true }
-    );
+    const { challenges } = req.body.data || {};
+    await Challenge.deleteMany({ type: 'default' });
+    if (challenges && challenges.length) {
+      const docs = challenges.map(c => ({
+        type: 'default', owner: null,
+        id: c.id, name: c.name, days: c.days, startDate: c.startDate,
+        habits: c.habits || [],
+        nextHabitId: c.nextHabitId || (c.habits ? c.habits.length + 1 : 1)
+      }));
+      await Challenge.insertMany(docs);
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// Get user challenges
+// Get user challenges — returns as { challenges, nextChallengeId }
 router.get('/user', authMiddleware, async (req, res) => {
-  const doc = await DataStore.findOne({ key: 'user_challenges_' + req.user.id });
-  res.json({ ok: true, data: doc ? doc.value : null });
+  const challenges = await Challenge.find({ type: 'user', owner: new mongoose.Types.ObjectId(req.user.id) }).sort({ _id: 1 }).lean();
+  const maxId = challenges.reduce((m, c) => Math.max(m, c.id || 0), 0);
+  res.json({ ok: true, data: { challenges, nextChallengeId: maxId + 1 } });
 });
 
-// Save user challenges
+// Save/replace user challenges
 router.post('/user', authMiddleware, async (req, res) => {
   try {
-    await DataStore.findOneAndUpdate(
-      { key: 'user_challenges_' + req.user.id },
-      { value: req.body.data },
-      { upsert: true }
-    );
+    const { challenges } = req.body.data || {};
+    await Challenge.deleteMany({ type: 'user', owner: new mongoose.Types.ObjectId(req.user.id) });
+    if (challenges && challenges.length) {
+      const docs = challenges.map(c => ({
+        type: 'user', owner: new mongoose.Types.ObjectId(req.user.id),
+        id: c.id, name: c.name, days: c.days, startDate: c.startDate,
+        habits: c.habits || [],
+        nextHabitId: c.nextHabitId || (c.habits ? c.habits.length + 1 : 1)
+      }));
+      await Challenge.insertMany(docs);
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -46,15 +62,16 @@ router.post('/user', authMiddleware, async (req, res) => {
 
 // Active challenge per user
 router.get('/active', authMiddleware, async (req, res) => {
-  const doc = await DataStore.findOne({ key: 'active_challenge_' + req.user.id });
-  res.json({ ok: true, data: doc ? doc.value : null });
+  const ac = await ActiveChallenge.findOne({ user: new mongoose.Types.ObjectId(req.user.id) });
+  res.json({ ok: true, data: ac ? { challengeId: ac.challengeId, source: ac.source } : null });
 });
 
 router.post('/active', authMiddleware, async (req, res) => {
   try {
-    await DataStore.findOneAndUpdate(
-      { key: 'active_challenge_' + req.user.id },
-      { value: req.body },
+    const { challengeId, source } = req.body;
+    await ActiveChallenge.findOneAndUpdate(
+      { user: new mongoose.Types.ObjectId(req.user.id) },
+      { challengeId, source },
       { upsert: true }
     );
     res.json({ ok: true });

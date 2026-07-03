@@ -1,19 +1,27 @@
 const express = require('express');
-const DataStore = require('../models/DataStore');
+const mongoose = require('mongoose');
+const Progress = require('../models/Progress');
+const ActiveChallenge = require('../models/ActiveChallenge');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.get('/', authMiddleware, async (req, res) => {
-  const doc = await DataStore.findOne({ key: 'progress_' + req.user.id });
-  res.json({ ok: true, data: doc ? doc.value : {} });
+  const userId = new mongoose.Types.ObjectId(req.user.id);
+  const ac = await ActiveChallenge.findOne({ user: userId });
+  if (!ac) return res.json({ ok: true, data: {} });
+  const progress = await Progress.findOne({ user: userId, challengeId: ac.challengeId });
+  res.json({ ok: true, data: progress ? Object.fromEntries(progress.entries || new Map()) : {} });
 });
 
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    await DataStore.findOneAndUpdate(
-      { key: 'progress_' + req.user.id },
-      { value: req.body.data },
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const ac = await ActiveChallenge.findOne({ user: userId });
+    if (!ac) return res.status(400).json({ ok: false, error: 'No active challenge' });
+    await Progress.findOneAndUpdate(
+      { user: userId, challengeId: ac.challengeId },
+      { entries: new Map(Object.entries(req.body.data || {})) },
       { upsert: true }
     );
     res.json({ ok: true });

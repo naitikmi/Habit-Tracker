@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loadDefaults, loadUserChallenges, loadProgress } from '../utils/api';
+import { loadDefaults, loadUserChallenges, loadProgress, loadActiveChallenge } from '../utils/api';
 import { getActiveChallenge, getActiveHabits } from '../utils/helpers';
 import { useAuth } from './AuthContext';
 
@@ -13,11 +13,17 @@ export function DataProvider({ children }) {
   const [loaded, setLoaded] = useState(false);
 
   const loadAll = useCallback(async () => {
-    const [dd, uc, pr] = await Promise.all([
+    const [dd, uc, pr, ac] = await Promise.all([
       loadDefaults(),
       loadUserChallenges(),
-      loadProgress()
+      loadProgress(),
+      loadActiveChallenge()
     ]);
+    // Merge active challenge selection into data
+    if (ac) {
+      if (ac.source === 'default' && dd) dd.activeChallengeId = ac.challengeId;
+      if (ac.source === 'user' && uc) uc.activeChallengeId = ac.challengeId;
+    }
     setDefaultsData(dd);
     setUserChallengesData(uc);
     setProgressData(pr);
@@ -25,11 +31,16 @@ export function DataProvider({ children }) {
   }, []);
 
   const refreshData = useCallback(async () => {
-    const [dd, uc, pr] = await Promise.all([
+    const [dd, uc, pr, ac] = await Promise.all([
       loadDefaults(),
       loadUserChallenges(),
-      loadProgress()
+      loadProgress(),
+      loadActiveChallenge()
     ]);
+    if (ac) {
+      if (ac.source === 'default' && dd) dd.activeChallengeId = ac.challengeId;
+      if (ac.source === 'user' && uc) uc.activeChallengeId = ac.challengeId;
+    }
     setDefaultsData(dd);
     setUserChallengesData(uc);
     setProgressData(pr);

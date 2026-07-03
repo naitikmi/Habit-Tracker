@@ -1,6 +1,6 @@
 import React from 'react';
 import { getChallenges } from '../../utils/helpers';
-import { saveDefaultsToServer, saveUserChallenges } from '../../utils/api';
+import { saveActiveChallenge } from '../../utils/api';
 
 export default function ChallengeSelector({ defaultsData, setDefaultsData, userChallengesData, setUserChallengesData, onChange }) {
   const challenges = getChallenges(defaultsData, userChallengesData);
@@ -15,23 +15,19 @@ export default function ChallengeSelector({ defaultsData, setDefaultsData, userC
     if (source === 'default') {
       const dd = { ...(defaultsData || { challenges: [], activeChallengeId: null, nextChallengeId: 1 }), activeChallengeId: id };
       if (!dd.challenges) dd.challenges = [];
-      if (!dd.nextChallengeId) dd.nextChallengeId = (dd.challenges.length || 0) + 1;
       setDefaultsData(dd);
       if (userChallengesData) {
         setUserChallengesData({ ...userChallengesData, activeChallengeId: null });
       }
-      await saveDefaultsToServer(dd);
-      if (userChallengesData) await saveUserChallenges({ ...userChallengesData, activeChallengeId: null });
+      await saveActiveChallenge(id, 'default');
     } else {
       const uc = { ...(userChallengesData || { challenges: [], activeChallengeId: null, nextChallengeId: 1 }), activeChallengeId: id };
       if (!uc.challenges) uc.challenges = [];
-      if (!uc.nextChallengeId) uc.nextChallengeId = (uc.challenges.length || 0) + 1;
       setUserChallengesData(uc);
       if (defaultsData) {
         setDefaultsData({ ...defaultsData, activeChallengeId: null });
       }
-      await saveUserChallenges(uc);
-      if (defaultsData) await saveDefaultsToServer({ ...defaultsData, activeChallengeId: null });
+      await saveActiveChallenge(id, 'user');
     }
     if (onChange) onChange();
   };
