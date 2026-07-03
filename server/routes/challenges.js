@@ -1,28 +1,23 @@
 const express = require('express');
-const Challenge = require('../models/Challenge');
+const DataStore = require('../models/DataStore');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Get default challenges (public)
 router.get('/default', async (req, res) => {
-  const challenges = await Challenge.find({ type: 'default' });
-  res.json({ ok: true, data: challenges });
+  const doc = await DataStore.findOne({ key: 'default_challenges' });
+  res.json({ ok: true, data: doc ? doc.value : null });
 });
 
 // Save default challenges (admin only)
 router.post('/default', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { challenges, activeChallengeId, nextChallengeId } = req.body.data || {};
-    await Challenge.deleteMany({ type: 'default' });
-    if (challenges) {
-      const docs = challenges.map(c => ({
-        type: 'default',
-        name: c.name, days: c.days, startDate: c.startDate,
-        habits: c.habits, nextHabitId: c.nextHabitId || (c.habits ? c.habits.length + 1 : 1)
-      }));
-      await Challenge.insertMany(docs);
-    }
+    await DataStore.findOneAndUpdate(
+      { key: 'default_challenges' },
+      { value: req.body.data },
+      { upsert: true }
+    );
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -31,23 +26,18 @@ router.post('/default', authMiddleware, adminMiddleware, async (req, res) => {
 
 // Get user challenges
 router.get('/user', authMiddleware, async (req, res) => {
-  const challenges = await Challenge.find({ type: 'user', owner: req.user.id });
-  res.json({ ok: true, data: challenges });
+  const doc = await DataStore.findOne({ key: 'user_challenges_' + req.user.id });
+  res.json({ ok: true, data: doc ? doc.value : null });
 });
 
 // Save user challenges
 router.post('/user', authMiddleware, async (req, res) => {
   try {
-    await Challenge.deleteMany({ type: 'user', owner: req.user.id });
-    const { challenges } = req.body.data || {};
-    if (challenges) {
-      const docs = challenges.map(c => ({
-        type: 'user', owner: req.user.id,
-        name: c.name, days: c.days, startDate: c.startDate,
-        habits: c.habits, nextHabitId: c.nextHabitId || (c.habits ? c.habits.length + 1 : 1)
-      }));
-      await Challenge.insertMany(docs);
-    }
+    await DataStore.findOneAndUpdate(
+      { key: 'user_challenges_' + req.user.id },
+      { value: req.body.data },
+      { upsert: true }
+    );
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -56,18 +46,15 @@ router.post('/user', authMiddleware, async (req, res) => {
 
 // Active challenge per user
 router.get('/active', authMiddleware, async (req, res) => {
-  const ActiveChallenge = require('../models/ActiveChallenge');
-  const ac = await ActiveChallenge.findOne({ user: req.user.id });
-  res.json({ ok: true, data: ac });
+  const doc = await DataStore.findOne({ key: 'active_challenge_' + req.user.id });
+  res.json({ ok: true, data: doc ? doc.value : null });
 });
 
 router.post('/active', authMiddleware, async (req, res) => {
   try {
-    const ActiveChallenge = require('../models/ActiveChallenge');
-    const { challengeId, source } = req.body;
-    await ActiveChallenge.findOneAndUpdate(
-      { user: req.user.id },
-      { challengeId, source },
+    await DataStore.findOneAndUpdate(
+      { key: 'active_challenge_' + req.user.id },
+      { value: req.body },
       { upsert: true }
     );
     res.json({ ok: true });
