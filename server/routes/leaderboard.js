@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Progress = require('../models/Progress');
+const ActiveChallenge = require('../models/ActiveChallenge');
 const Challenge = require('../models/Challenge');
 const User = require('../models/User');
 
@@ -20,16 +21,29 @@ router.get('/:challengeId', async (req, res) => {
     if (!challenge) return res.json({ ok: false, error: 'Challenge not found' });
 
     const habitMaxSum = challenge.habits.reduce((s, h) => s + (h.maxPoints || 10), 0);
-    if (habitMaxSum === 0) return res.json({ ok: true, data: { challenge: { name: challenge.name, days: challenge.days, habitsCount: challenge.habits.length }, entries: [], count: 0 } });
 
+    // Get all followers (users who have this as active challenge)
+    const followers = await ActiveChallenge.find({ challengeId, source }).lean();
+    const followerUserIds = followers.map(f => f.user.toString());
+
+    // Get all users with progress for this challenge
     const progressDocs = await Progress.find({ challengeId }).lean();
 
-    const entries = [];
+    // Build a map of userId -> progress data
+    const progressMap = {};
     for (const doc of progressDocs) {
-      const user = await User.findById(doc.user).lean();
+      progressMap[doc.user.toString()] = doc.entries || {};
+    }
+
+    // Merge followers + progress users into a unique set
+    const userIds = new Set([...followerUserIds, ...Object.keys(progressMap)]);
+
+    const entries = [];
+    for (const userId of userIds) {
+      const user = await User.findById(userId).lean();
       if (!user) continue;
 
-      const data = doc.entries || {};
+      const data = progressMap[userId] || {};
 
       const dateSet = new Set();
       let totalEarned = 0;
@@ -44,7 +58,7 @@ router.get('/:challengeId', async (req, res) => {
       }
 
       const daysTracked = dateSet.size;
-      const totalPossible = daysTracked * habitMaxSum;
+      const totalPossible = daysTracked * (habitMaxSum || 1);
       const percentage = totalPossible > 0 ? Math.round((totalEarned / totalPossible) * 100) : 0;
 
       entries.push({
