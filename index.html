@@ -619,118 +619,6 @@ function formatDateNice(d) {
   return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:d.getFullYear()!==t.getFullYear()?'numeric':undefined});
 }
 
-// ===== CHARTS =====
-function renderCharts() {
-  if (!document.getElementById('page-charts').classList.contains('active')) return;
-  renderMainChart(); renderCalendar();
-}
-function getChartChallenge() {
-  return getActiveChallenge() || (getChallenges()[0] || null);
-}
-function getChartHabits() {
-  const c = getChartChallenge(); return c ? c.habits : [];
-}
-function getChartEntry(habitId, ds) {
-  return (progressData[habitId] || {})[ds] || 0;
-}
-
-function renderMainChart() {
-  const canvas = document.getElementById('mainChart');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (mainChart) { mainChart.destroy(); mainChart = null; }
-  const challenge = getChartChallenge();
-  const habits = getChartHabits();
-
-  if (!challenge || !habits.length) {
-    mainChart = new Chart(ctx, { type:'bar', data:{ labels:['No data'], datasets:[{ label:'%', data:[0], backgroundColor:'#333' }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} } });
-    return;
-  }
-
-  const labels = []; let dataArr = [];
-
-  if (currentPeriod === 'daily') {
-    const today = new Date();
-    for (let i=6; i>=0; i--) {
-      const d = new Date(today); d.setDate(d.getDate()-i);
-      labels.push(d.toLocaleDateString('en-US',{weekday:'short'}));
-      const ds = dateStr(d);
-      let pts = 0, max = 0;
-      habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
-      dataArr.push(max ? Math.round((pts/max)*100) : 0);
-    }
-  } else if (currentPeriod === 'weekly') {
-    const today = new Date();
-    for (let w=4; w>=0; w--) {
-      const s = new Date(today); s.setDate(s.getDate()-(w*7)-6);
-      const e = new Date(today); e.setDate(e.getDate()-(w*7));
-      labels.push(s.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'-'+e.toLocaleDateString('en-US',{day:'numeric'}));
-      let pts=0, max=0;
-      for (let d=0; d<7; d++) {
-        const day = new Date(today); day.setDate(day.getDate()-(w*7)-d);
-        const ds = dateStr(day);
-        habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
-      }
-      dataArr.push(max ? Math.round((pts/max)*100) : 0);
-    }
-  } else {
-    const today = new Date();
-    for (let m=5; m>=0; m--) {
-      const d = new Date(today.getFullYear(), today.getMonth()-m, 1);
-      labels.push(d.toLocaleDateString('en-US',{month:'short'}));
-      const month = (today.getMonth()-m+12)%12;
-      const year = today.getFullYear() + Math.floor((today.getMonth()-m)/12);
-      const dim = new Date(year, month+1, 0).getDate();
-      let pts=0, max=0;
-      for (let d=1; d<=dim; d++) {
-        const day = new Date(year, month, d); const ds = dateStr(day);
-        habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
-      }
-      dataArr.push(max ? Math.round((pts/max)*100) : 0);
-    }
-  }
-
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-  mainChart = new Chart(ctx, {
-    type:'bar', data:{ labels, datasets:[{ label:'%', data:dataArr, backgroundColor:accent+'40', borderColor:accent, borderWidth:2, borderRadius:4, fill:true }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'%'}} }, scales:{ x:{ticks:{color:'#55557a',font:{size:10}},grid:{color:'#1e1e38'}}, y:{ beginAtZero:true, max:100, ticks:{color:'#55557a',font:{size:10},callback:v=>v+'%'}, grid:{color:'#1e1e38'} } } }
-  });
-}
-
-function renderCalendar() {
-  const grid = document.getElementById('calendarGrid');
-  const title = document.getElementById('calTitle');
-  const year = calDate.getFullYear(), month = calDate.getMonth();
-  title.textContent = calDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-  const firstDay = new Date(year,month,1).getDay();
-  const dim = new Date(year,month+1,0).getDate();
-  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const today = todayStr();
-  const habits = getChartHabits();
-  let html = dayNames.map(d => `<div class="day-label">${d}</div>`).join('');
-  for (let i=0; i<firstDay; i++) html += '<div class="day-cell dim"></div>';
-  for (let day=1; day<=dim; day++) {
-    const d = new Date(year,month,day); const ds = dateStr(d);
-    const isToday = ds === today;
-    let pts=0, max=0;
-    habits.forEach(h => { const m = h.maxPoints||10; max += m; if (getChartEntry(h.id, ds) > 0) pts += m; });
-    const pct = max ? pts/max : 0;
-    const r = Math.round(30+(50-30)*pct), g = Math.round(30+(204-30)*pct), bb = Math.round(40+(113-40)*pct);
-    const bg = pts>0 ? `rgb(${r},${g},${bb})` : 'var(--card2)';
-    html += `<div class="day-cell${isToday?' today':''}" style="background:${bg}" title="${ds}: ${pts}/${max}">${day}</div>`;
-  }
-  grid.innerHTML = html;
-}
-
-document.getElementById('calPrev').addEventListener('click', ()=>{ calDate.setMonth(calDate.getMonth()-1); renderCalendar(); });
-document.getElementById('calNext').addEventListener('click', ()=>{ calDate.setMonth(calDate.getMonth()+1); renderCalendar(); });
-document.querySelectorAll('.btn-period').forEach(btn => {
-  btn.addEventListener('click', function() {
-    document.querySelectorAll('.btn-period').forEach(b => b.classList.remove('active'));
-    this.classList.add('active'); currentPeriod = this.dataset.period; renderMainChart();
-  });
-});
-
 // ===== DASHBOARD =====
 function renderDashboard() {
   if (!document.getElementById('page-dashboard').classList.contains('active')) return;
@@ -837,45 +725,53 @@ function renderMainChart() {
   }
 
   const labels = []; let dataArr = [];
+  const startDate = parseDate(challenge.startDate);
+  const endDate = getChallengeEnd(challenge) || new Date();
+  const today = new Date();
+  const rangeEnd = endDate < today ? endDate : today;
 
   if (currentPeriod === 'daily') {
-    const today = new Date();
-    for (let i=6; i>=0; i--) {
-      const d = new Date(today); d.setDate(d.getDate()-i);
-      labels.push(d.toLocaleDateString('en-US',{weekday:'short'}));
+    const d = new Date(startDate);
+    while (d <= rangeEnd) {
       const ds = dateStr(d);
+      labels.push(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
       let pts = 0, max = 0;
       habits.forEach(h => { const m = h.maxPoints||10; max += m; if (((progressData[h.id]||{})[ds]||0)>0) pts += m; });
       dataArr.push(max ? Math.round((pts/max)*100) : 0);
+      d.setDate(d.getDate()+1);
     }
   } else if (currentPeriod === 'weekly') {
-    const today = new Date();
-    for (let w=4; w>=0; w--) {
-      const s = new Date(today); s.setDate(s.getDate()-(w*7)-6);
-      const e = new Date(today); e.setDate(e.getDate()-(w*7));
-      labels.push(s.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'-'+e.toLocaleDateString('en-US',{day:'numeric'}));
+    const d = new Date(startDate);
+    while (d <= rangeEnd) {
+      const weekStart = new Date(d);
+      const weekEnd = new Date(d); weekEnd.setDate(weekEnd.getDate()+6);
+      if (weekEnd > rangeEnd) weekEnd.setTime(rangeEnd.getTime());
+      labels.push(weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'-'+weekEnd.toLocaleDateString('en-US',{day:'numeric'}));
       let pts=0, max=0;
-      for (let d=0; d<7; d++) {
-        const day = new Date(today); day.setDate(day.getDate()-(w*7)-d);
+      for (let i=0; i<7; i++) {
+        const day = new Date(weekStart); day.setDate(day.getDate()+i);
+        if (day > rangeEnd) break;
         const ds = dateStr(day);
         habits.forEach(h => { const m = h.maxPoints||10; max += m; if (((progressData[h.id]||{})[ds]||0)>0) pts += m; });
       }
       dataArr.push(max ? Math.round((pts/max)*100) : 0);
+      d.setDate(d.getDate()+7);
     }
   } else {
-    const today = new Date();
-    for (let m=5; m>=0; m--) {
-      const d = new Date(today.getFullYear(), today.getMonth()-m, 1);
-      labels.push(d.toLocaleDateString('en-US',{month:'short'}));
-      const month = (today.getMonth()-m+12)%12;
-      const year = today.getFullYear() + Math.floor((today.getMonth()-m)/12);
-      const dim = new Date(year, month+1, 0).getDate();
+    const d = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const endMonth = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1);
+    while (d <= endMonth) {
+      labels.push(d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}));
+      const dim = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
       let pts=0, max=0;
-      for (let d=1; d<=dim; d++) {
-        const day = new Date(year, month, d); const ds = dateStr(day);
+      for (let day=1; day<=dim; day++) {
+        const dayDate = new Date(d.getFullYear(), d.getMonth(), day);
+        if (dayDate > rangeEnd) break;
+        const ds = dateStr(dayDate);
         habits.forEach(h => { const m = h.maxPoints||10; max += m; if (((progressData[h.id]||{})[ds]||0)>0) pts += m; });
       }
       dataArr.push(max ? Math.round((pts/max)*100) : 0);
+      d.setMonth(d.getMonth()+1);
     }
   }
 
