@@ -845,7 +845,7 @@ function renderMainChart() {
       labels.push(d.toLocaleDateString('en-US',{weekday:'short'}));
       const ds = dateStr(d);
       let pts = 0, max = 0;
-      habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+      habits.forEach(h => { const m = h.maxPoints||10; max += m; if (((progressData[h.id]||{})[ds]||0)>0) pts += m; });
       dataArr.push(max ? Math.round((pts/max)*100) : 0);
     }
   } else if (currentPeriod === 'weekly') {
@@ -858,7 +858,7 @@ function renderMainChart() {
       for (let d=0; d<7; d++) {
         const day = new Date(today); day.setDate(day.getDate()-(w*7)-d);
         const ds = dateStr(day);
-        habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+        habits.forEach(h => { const m = h.maxPoints||10; max += m; if (((progressData[h.id]||{})[ds]||0)>0) pts += m; });
       }
       dataArr.push(max ? Math.round((pts/max)*100) : 0);
     }
@@ -873,7 +873,7 @@ function renderMainChart() {
       let pts=0, max=0;
       for (let d=1; d<=dim; d++) {
         const day = new Date(year, month, d); const ds = dateStr(day);
-        habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+        habits.forEach(h => { const m = h.maxPoints||10; max += m; if (((progressData[h.id]||{})[ds]||0)>0) pts += m; });
       }
       dataArr.push(max ? Math.round((pts/max)*100) : 0);
     }
@@ -902,7 +902,7 @@ function renderCalendar() {
     const d = new Date(year,month,day); const ds = dateStr(d);
     const isToday = ds === today;
     let pts=0, max=0;
-    habits.forEach(h => { const m = h.maxPoints||10; max += m; if ((h.entries[ds]||0)>0) pts += m; });
+    habits.forEach(h => { const m = h.maxPoints||10; max += m; if (((progressData[h.id]||{})[ds]||0)>0) pts += m; });
     const pct = max ? pts/max : 0;
     const r = Math.round(30+(50-30)*pct), g = Math.round(30+(204-30)*pct), bb = Math.round(40+(113-40)*pct);
     const bg = pts>0 ? `rgb(${r},${g},${bb})` : 'var(--card2)';
