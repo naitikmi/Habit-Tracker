@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { setEntry } from '../../utils/helpers';
+import { setEntry, daysBetween } from '../../utils/helpers';
 import { saveProgress } from '../../utils/api';
 import ChallengeSelector from './ChallengeSelector';
 import DateNav from './DateNav';
@@ -50,16 +50,20 @@ export default function TodayPage() {
 
   const start = parseDateStr(activeChallenge.startDate);
   const isBefore = currentDate < start && dateStrKey(currentDate) !== dateStrKey(start);
+  const todayNum = Math.min(activeChallenge.days, Math.max(1, daysBetween(start, currentDate)));
 
   return (
     <div>
-      <ChallengeSelector
-        defaultsData={defaultsData}
-        setDefaultsData={setDefaultsData}
-        userChallengesData={userChallengesData}
-        setUserChallengesData={setUserChallengesData}
-        onChange={handleChallengeChange}
-      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <ChallengeSelector
+          defaultsData={defaultsData}
+          setDefaultsData={setDefaultsData}
+          userChallengesData={userChallengesData}
+          setUserChallengesData={setUserChallengesData}
+          onChange={handleChallengeChange}
+        />
+        <span className="day-badge">Day {todayNum} of {activeChallenge.days}</span>
+      </div>
       <DateNav
         currentDate={currentDate}
         setCurrentDate={setCurrentDate}
