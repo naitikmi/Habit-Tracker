@@ -117,7 +117,7 @@ body{
 .chart-period .btn-period:hover{border-color:var(--accent-glow);color:var(--accent)}
 .chart-period .btn-period.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 10px var(--accent-glow)}
 .chart-wrap{position:relative;height:200px}
-.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:6px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:6px}
 .calendar-grid .day-label{text-align:center;font-size:9px;color:var(--text3);padding:3px 0;font-weight:700;text-transform:uppercase}
 .calendar-grid .day-cell{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text3);background:var(--card2);cursor:pointer;transition:.15s;font-weight:500}
 .calendar-grid .day-cell:hover{opacity:.8}
@@ -222,17 +222,79 @@ body{
 .score-ring-wrap svg defs linearGradient stop:last-child{stop-color:#feb47b}
 
 /* ===== RESPONSIVE ===== */
-@media(max-width:400px){
-  .container{padding:8px 10px}
-  .bottom-nav .nav-item{font-size:10px;padding:6px 4px}
-  .bottom-nav .nav-item .nav-icon{font-size:14px}
-  .score-ring-wrap{width:58px;height:58px}
-  .score-ring-wrap svg{width:58px;height:58px}
-  .score-ring-wrap .pct-text{font-size:14px}
-  .chart-wrap{height:160px}
-  .auth-box{padding:28px 20px}
+/* Desktop+ */
+@media(min-width:769px){
+  .container{max-width:560px;padding:16px 20px}
+  .header h1{font-size:26px}
+  .bottom-nav .nav-item{padding:10px 12px;font-size:13px}
+  .bottom-nav .nav-item .nav-icon{font-size:18px}
+  .score-ring-wrap{width:76px;height:76px}
+  .score-ring-wrap svg{width:76px;height:76px}
+  .score-ring-wrap .pct-text{font-size:20px}
+  .check-item{padding:14px 16px 14px 10px}
+  .check-item .ci-info .ci-name{font-size:15px}
+  .score-card{padding:20px}
 }
-@media(max-width:360px){
+
+/* Small phones */
+@media(max-width:420px){
+  .container{padding:8px 10px}
+  .header{padding:14px 0 10px}
+  .header h1{font-size:18px}
+  .header .sub{font-size:10px}
+  .bottom-nav .nav-item{font-size:10px;padding:6px 3px}
+  .bottom-nav .nav-item .nav-icon{font-size:13px;margin-right:2px}
+  .score-ring-wrap{width:54px;height:54px}
+  .score-ring-wrap svg{width:54px;height:54px}
+  .score-ring-wrap .pct-text{font-size:13px}
+  .score-card{gap:12px;padding:14px}
+  .score-info .score-main{font-size:13px}
+  .score-info .score-pts{font-size:11px}
+  .date-nav{padding:8px 10px}
+  .date-nav .date-label{font-size:11px;word-break:break-word;max-width:55%}
+  .check-item{gap:8px;padding:10px 10px 10px 6px}
+  .check-item .check-box{width:32px;height:32px;font-size:14px;flex-shrink:0}
+  .check-item .ci-info .ci-name{font-size:13px}
+  .check-item .ci-right .ci-pts{font-size:13px}
+  .dash-summary{padding:14px}
+  .dash-row .dash-val{font-size:18px}
+  .dash-highlight{gap:4px}
+  .dash-highlight .hl-card{padding:10px 4px}
+  .dash-highlight .hl-card .hl-val{font-size:12px}
+  .dash-highlight .hl-card .hl-icon{font-size:16px}
+  .dash-habit{padding:10px 10px;gap:8px}
+  .dash-habit-info .dh-name{font-size:12px}
+  .dash-habit-right .dh-pct{font-size:14px}
+  .chart-wrap{height:150px}
+  .chart-box{padding:10px}
+  .calendar-grid .day-cell{font-size:8px}
+  .auth-box{padding:24px 16px;margin:0 4px}
+  .auth-box h2{font-size:20px}
+  .auth-box input{padding:10px 12px;font-size:13px}
+  .wizard{padding:18px}
+  .wizard h2{font-size:16px}
+  .wizard .wh-row{flex-wrap:wrap;gap:6px}
+  .wizard .wh-row input[type=text]{min-width:0;width:100%}
+  .wizard .wh-row input[type=number]{width:70px}
+  .setting-row{padding:12px 14px}
+  .challenge-card{padding:12px 14px;gap:10px}
+  .challenge-selector{padding:8px 10px}
+  .challenge-selector select{font-size:12px;padding:7px 26px 7px 10px}
+  .challenge-selector .cs-label{font-size:10px}
+  .day-badge{font-size:10px;padding:4px 10px}
+  .btn-secondary,.btn-danger{padding:8px 12px;font-size:11px}
+  .theme-panel{width:calc(100% - 24px);max-width:300px;padding:18px}
+}
+
+/* Very tiny phones */
+@media(max-width:340px){
   .bottom-nav .nav-item .nav-icon{display:none}
-  .bottom-nav .nav-item{padding:8px 2px;font-size:9px}
+  .bottom-nav .nav-item{padding:6px 2px;font-size:9px}
+  .dash-highlight{flex-wrap:wrap}
+  .dash-highlight .hl-card{min-width:calc(50% - 2px);flex:1 1 auto}
+  .score-card{flex-direction:column;text-align:center;gap:8px}
+  .score-card .score-bar{width:100%}
+  .header h1{font-size:16px}
+  .challenge-selector{flex-wrap:wrap}
+  .challenge-selector .cs-label{width:100%;margin-bottom:2px}
 }
