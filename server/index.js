@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
 const challengeRoutes = require('./routes/challenges');
 const progressRoutes = require('./routes/progress');
+const leaderboardRoutes = require('./routes/leaderboard');
 const User = require('./models/User');
 const Challenge = require('./models/Challenge');
 const mongoose = require('mongoose');
@@ -20,6 +21,7 @@ app.use(express.json({ limit: '5mb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 // Serve React build in production
 const clientBuild = path.join(__dirname, '..', 'client', 'dist');

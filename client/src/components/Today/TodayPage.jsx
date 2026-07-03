@@ -1,12 +1,13 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { setEntry, daysBetween } from '../../utils/helpers';
+import { daysBetween } from '../../utils/helpers';
 import { saveProgress } from '../../utils/api';
 import ChallengeSelector from './ChallengeSelector';
 import DateNav from './DateNav';
 import ScoreCard from './ScoreCard';
 import CheckList from './CheckList';
+import LeaderboardPanel from './LeaderboardPanel';
 import { useToast } from '../Layout/Toast';
 
 export default function TodayPage() {
@@ -19,6 +20,7 @@ export default function TodayPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const entryGetter = (habitId) => {
     return (progressData[habitId] || {})[dateStrKey(currentDate)] || 0;
@@ -64,11 +66,25 @@ export default function TodayPage() {
         />
         <span className="day-badge">Day {todayNum} of {activeChallenge.days}</span>
       </div>
-      <DateNav
-        currentDate={currentDate}
-        setCurrentDate={setCurrentDate}
-        activeChallenge={activeChallenge}
-      />
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+        <div style={{ flex: 1 }}>
+          <DateNav
+            currentDate={currentDate}
+            setCurrentDate={setCurrentDate}
+            activeChallenge={activeChallenge}
+          />
+        </div>
+        <button className="btn-leaderboard" onClick={() => setShowLeaderboard(true)} title="Leaderboard">
+          🏆
+        </button>
+      </div>
+      {showLeaderboard && (
+        <LeaderboardPanel
+          challengeId={activeChallenge.id}
+          challengeName={activeChallenge.name}
+          onClose={() => setShowLeaderboard(false)}
+        />
+      )}
       {isBefore ? (
         <div className="empty-state">
           <p>Challenge starts {formatDateStr(start)}</p>

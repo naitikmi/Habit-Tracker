@@ -195,6 +195,31 @@ body{
 .setting-row.clickable{cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:space-between}
 .setting-row.clickable:hover{border-color:rgba(255,255,255,.06)}
 
+/* ===== LEADERBOARD ===== */
+.btn-leaderboard{width:44px;height:44px;border:none;border-radius:var(--radius-sm);background:var(--card);color:var(--text2);font-size:20px;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(255,255,255,.03)}
+.btn-leaderboard:hover{background:var(--accent-glow);color:var(--accent);border-color:var(--accent-glow)}
+.btn-leaderboard:active{transform:scale(.92)}
+.leaderboard-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border-radius:var(--radius);padding:20px;z-index:150;width:340px;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.05);animation:authFade .25s ease}
+.leaderboard-panel .lb-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.leaderboard-panel .lb-header h3{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.leaderboard-panel .lb-close{width:28px;height:28px;border:none;border-radius:50%;background:var(--card2);color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.2s}
+.leaderboard-panel .lb-close:hover{background:var(--accent-glow);color:var(--accent)}
+.leaderboard-panel .lb-meta{font-size:11px;color:var(--text3);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--card2)}
+.leaderboard-panel .lb-loading,.leaderboard-panel .lb-empty{text-align:center;padding:30px 10px;color:var(--text3);font-size:13px}
+.leaderboard-panel .lb-list{display:flex;flex-direction:column;gap:6px}
+.leaderboard-panel .lb-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg);transition:.2s;position:relative;overflow:hidden}
+.leaderboard-panel .lb-row:first-child{background:linear-gradient(135deg,rgba(255,215,0,.08),var(--bg))}
+.leaderboard-panel .lb-row:first-child .lb-rank{color:gold;font-weight:800}
+.leaderboard-panel .lb-rank{font-size:11px;font-weight:700;color:var(--text3);width:24px;text-align:center;flex-shrink:0}
+.leaderboard-panel .lb-avatar{width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,var(--accent),#ff6b35);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
+.leaderboard-panel .lb-avatar img{width:100%;height:100%;object-fit:cover}
+.leaderboard-panel .lb-info{flex:1;min-width:0}
+.leaderboard-panel .lb-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leaderboard-panel .lb-sub{font-size:9px;color:var(--text3);margin-top:1px}
+.leaderboard-panel .lb-pct{font-size:14px;font-weight:800;color:var(--accent);flex-shrink:0;min-width:40px;text-align:right}
+.leaderboard-panel .lb-bar-wrap{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--card2)}
+.leaderboard-panel .lb-bar{height:100%;background:linear-gradient(90deg,var(--accent),#feb47b);border-radius:2px;transition:width .4s ease}
+
 /* ===== TOP NAV ===== */
 .bottom-nav{display:flex;background:var(--card);border-radius:var(--radius);padding:4px;margin-bottom:12px;gap:4px;border:1px solid rgba(255,255,255,.03)}
 .bottom-nav .nav-item{flex:1;padding:8px 6px;text-align:center;border:none;background:transparent;color:var(--text3);cursor:pointer;transition:.2s;font-size:11px;font-weight:600;border-radius:var(--radius-sm);position:relative}
@@ -311,6 +336,8 @@ body{
   .profile-info .profile-name{font-size:14px}
   .profile-section{padding:12px}
   .profile-mini-avatar{width:34px;height:34px;font-size:14px}
+  .leaderboard-panel{width:calc(100% - 24px);max-width:340px;padding:16px}
+  .btn-leaderboard{width:40px;height:40px;font-size:18px}
   .wizard{padding:18px}
   .wizard h2{font-size:16px}
   .wizard .wh-row{flex-wrap:wrap;gap:6px}
