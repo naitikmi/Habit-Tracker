@@ -191,7 +191,21 @@ body{
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);background:rgba(21,21,40,.95);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--text);padding:12px 24px;border-radius:12px;font-size:13px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:100;opacity:0;transition:all .35s cubic-bezier(.4,0,.2,1);pointer-events:none;white-space:nowrap;border:1px solid rgba(255,255,255,.05)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-/* ===== AUTH ===== */
+/* ===== THEME PICKER ===== */
+.theme-btn{width:32px;height:32px;border:none;border-radius:50%;background:var(--card2);color:var(--text2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;flex-shrink:0}
+.theme-btn:hover{background:var(--accent-glow);color:var(--accent)}
+.theme-btn:active{transform:scale(.88)}
+.theme-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border-radius:var(--radius);padding:24px;z-index:150;width:300px;box-shadow:0 16px 48px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.05);display:none;animation:authFade .25s ease}
+.theme-panel.open{display:block}
+.theme-panel h3{font-size:16px;font-weight:700;margin-bottom:16px;text-align:center}
+.theme-panel .theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.theme-panel .theme-opt{padding:12px;border-radius:var(--radius-sm);border:2px solid var(--card2);background:var(--bg);cursor:pointer;text-align:center;transition:.2s}
+.theme-panel .theme-opt:hover{border-color:var(--accent-glow)}
+.theme-panel .theme-opt.active{border-color:var(--accent);background:var(--accent-glow)}
+.theme-panel .theme-opt .swatch{width:100%;height:24px;border-radius:6px;margin-bottom:6px}
+.theme-panel .theme-opt .tname{font-size:11px;font-weight:600;color:var(--text)}
+.theme-panel .theme-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:149;display:none}
+.theme-panel .theme-overlay.open{display:block}
 .auth-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;animation:authFade .4s ease}
 @keyframes authFade{from{opacity:0}to{opacity:1}}
 .auth-box{background:var(--card);border-radius:var(--radius);padding:36px 28px;width:100%;max-width:360px;text-align:center;border:1px solid rgba(255,255,255,.05);box-shadow:0 16px 48px rgba(0,0,0,.5);animation:authSlide .4s cubic-bezier(.4,0,.2,1)}
@@ -257,7 +271,9 @@ body{
       <h1>Challenge Tracker</h1>
       <div class="sub" id="todayLabel"></div>
     </div>
-    <div class="header-right"></div>
+    <div class="header-right">
+      <button class="theme-btn" id="themeToggleBtn" title="Change theme">🎨</button>
+    </div>
   </div>
 
   <div class="tabs" id="viewTabs">
@@ -344,9 +360,60 @@ body{
 
 <div class="toast" id="toast"></div>
 
+<div class="theme-overlay" id="themeOverlay"></div>
+<div class="theme-panel" id="themePanel">
+  <h3>Choose Theme</h3>
+  <div class="theme-grid" id="themeGrid"></div>
+</div>
+
 <script>
 const COLORS = ['#ff8c42','#2ecc71','#e74c3c','#f39c12','#3498db','#e91e63','#00bcd4','#ff9800','#9c27b0','#4caf50'];
 const TOKEN_KEY = 'challengeToken';
+const THEME_KEY = 'challengeTheme';
+const THEMES = {
+  sunset: {
+    name:'Sunset', bg:'#0d0b0a',card:'#1a1513',card2:'#2a2220',
+    accent:'#ff8c42',accentGlow:'#ff8c4240',
+    green:'#2ecc71',red:'#e74c3c',amber:'#f39c12',blue:'#3498db',
+    text:'#f0edea',text2:'#b0a8a2',text3:'#7a7068'
+  },
+  midnight: {
+    name:'Midnight', bg:'#0a0a14',card:'#151528',card2:'#1e1e38',
+    accent:'#7c5cfc',accentGlow:'#7c5cfc40',
+    green:'#2ecc71',red:'#e74c3c',amber:'#f39c12',blue:'#3498db',
+    text:'#eeeef4',text2:'#8888aa',text3:'#55557a'
+  },
+  forest: {
+    name:'Forest', bg:'#0a100d',card:'#121a15',card2:'#1c2820',
+    accent:'#2ecc71',accentGlow:'#2ecc7140',
+    green:'#2ecc71',red:'#e74c3c',amber:'#f39c12',blue:'#3498db',
+    text:'#e8efe8',text2:'#8aaa8a',text3:'#556a55'
+  },
+  ocean: {
+    name:'Ocean', bg:'#0a0e1a',card:'#12183a',card2:'#1a2450',
+    accent:'#3498db',accentGlow:'#3498db40',
+    green:'#2ecc71',red:'#e74c3c',amber:'#f39c12',blue:'#3498db',
+    text:'#e8edf4',text2:'#889aaa',text3:'#556a7a'
+  },
+  rose: {
+    name:'Rose', bg:'#100a0d',card:'#1f1218',card2:'#2e1a24',
+    accent:'#e84393',accentGlow:'#e8439340',
+    green:'#2ecc71',red:'#e74c3c',amber:'#f39c12',blue:'#3498db',
+    text:'#f0e8ec',text2:'#b0889a',text3:'#7a556a'
+  },
+  lavender: {
+    name:'Lavender', bg:'#0e0a18',card:'#18122a',card2:'#221a3e',
+    accent:'#a855f7',accentGlow:'#a855f740',
+    green:'#2ecc71',red:'#e74c3c',amber:'#f39c12',blue:'#3498db',
+    text:'#eee8f4',text2:'#9988aa',text3:'#66557a'
+  },
+  amber: {
+    name:'Amber', bg:'#0d0b08',card:'#1a1610',card2:'#2a2218',
+    accent:'#f59e0b',accentGlow:'#f59e0b40',
+    green:'#2ecc71',red:'#e74c3c',amber:'#f39c12',blue:'#3498db',
+    text:'#f0ece4',text2:'#b0a888',text3:'#7a7055'
+  }
+};
 let mainChart = null, currentPeriod = 'daily', calDate = new Date(), currentDate = new Date();
 let user = null;
 let defaultsData = null; // admin challenges (shared)
@@ -381,6 +448,56 @@ async function checkAuth() {
   if (r && r.ok) { user = r.user; return true; }
   localStorage.removeItem(TOKEN_KEY); return false;
 }
+
+// ===== THEMES =====
+function applyTheme(name) {
+  const t = THEMES[name] || THEMES.sunset;
+  const root = document.documentElement;
+  root.style.setProperty('--bg', t.bg);
+  root.style.setProperty('--card', t.card);
+  root.style.setProperty('--card2', t.card2);
+  root.style.setProperty('--accent', t.accent);
+  root.style.setProperty('--accent-glow', t.accentGlow);
+  root.style.setProperty('--green', t.green);
+  root.style.setProperty('--red', t.red);
+  root.style.setProperty('--amber', t.amber);
+  root.style.setProperty('--blue', t.blue);
+  root.style.setProperty('--text', t.text);
+  root.style.setProperty('--text2', t.text2);
+  root.style.setProperty('--text3', t.text3);
+  localStorage.setItem(THEME_KEY, name);
+}
+function openThemePanel() {
+  const panel = document.getElementById('themePanel');
+  const overlay = document.getElementById('themeOverlay');
+  const grid = document.getElementById('themeGrid');
+  const current = localStorage.getItem(THEME_KEY) || 'sunset';
+  grid.innerHTML = Object.keys(THEMES).map(key => {
+    const t = THEMES[key];
+    const isActive = key === current;
+    return `<div class="theme-opt ${isActive?'active':''}" data-theme="${key}">
+      <div class="swatch" style="background:linear-gradient(135deg,${t.accent},${t.card2})"></div>
+      <div class="tname">${t.name}</div>
+    </div>`;
+  }).join('');
+  Array.from(grid.children).forEach(el => {
+    el.addEventListener('click', () => {
+      const key = el.dataset.theme;
+      applyTheme(key);
+      openThemePanel();
+    });
+  });
+  panel.classList.add('open');
+  overlay.classList.add('open');
+}
+function closeThemePanel() {
+  document.getElementById('themePanel').classList.remove('open');
+  document.getElementById('themeOverlay').classList.remove('open');
+}
+document.addEventListener('click', function(e) {
+  const overlay = document.getElementById('themeOverlay');
+  if (overlay && overlay.classList.contains('open') && e.target === overlay) closeThemePanel();
+});
 
 // ===== DATA LOADING =====
 async function loadDefaults() {
@@ -423,6 +540,9 @@ function validatePassword(password) {
 }
 
 async function initApp() {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  if (savedTheme && THEMES[savedTheme]) applyTheme(savedTheme);
+  else applyTheme('sunset');
   if (!await checkAuth()) { showAuth(); return; }
   await loadDefaults();
   await loadUserChallenges();
@@ -1049,6 +1169,15 @@ function renderSettings() {
   }
   html += `<button class="btn-secondary" id="addMyChallengeBtn" style="width:100%;margin-bottom:10px">+ Create My Challenge</button>`;
 
+  html += `<div class="section-header">Theme</div>
+  <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" id="themeSettingsBtn">
+    <div><div class="label">Color Theme</div><div class="desc">Change the app appearance</div></div>
+    <div style="display:flex;gap:4px;align-items:center">
+      <span style="font-size:12px;color:var(--text3)">${THEMES[localStorage.getItem(THEME_KEY)||'sunset'].name}</span>
+      <span style="font-size:16px">🎨</span>
+    </div>
+  </div>`;
+
   html += `<button class="btn-danger" id="logoutBtn" style="width:100%;margin-top:10px">Sign Out</button>`;
 
   container.innerHTML = html;
@@ -1118,6 +1247,8 @@ function renderSettings() {
   });
 
   document.getElementById('logoutBtn').addEventListener('click', ()=>{ logout(); });
+  const themeSettingsBtn = document.getElementById('themeSettingsBtn');
+  if (themeSettingsBtn) themeSettingsBtn.addEventListener('click', openThemePanel);
 }
 
 // ===== NAVIGATION =====
@@ -1154,6 +1285,7 @@ function renderAll() {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('themeToggleBtn').addEventListener('click', openThemePanel);
   hideAuth();
   initApp();
 });
