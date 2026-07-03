@@ -202,8 +202,8 @@ body{
 .leaderboard-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border-radius:var(--radius);padding:20px;z-index:150;width:340px;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.05);animation:authFade .25s ease}
 .leaderboard-panel .lb-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .leaderboard-panel .lb-header h3{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
-.leaderboard-panel .lb-close{width:28px;height:28px;border:none;border-radius:50%;background:var(--card2);color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.2s}
-.leaderboard-panel .lb-close:hover{background:var(--accent-glow);color:var(--accent)}
+.leaderboard-panel .lb-close{width:30px;height:30px;border:none;border-radius:50%;background:var(--card2);color:var(--text3);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.25s;font-weight:700}
+.leaderboard-panel .lb-close:hover{background:var(--red);color:#fff;transform:rotate(90deg);box-shadow:0 0 14px rgba(231,76,60,.5)}
 .leaderboard-panel .lb-meta{font-size:11px;color:var(--text3);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--card2)}
 .leaderboard-panel .lb-loading,.leaderboard-panel .lb-empty{text-align:center;padding:30px 10px;color:var(--text3);font-size:13px}
 .leaderboard-panel .lb-list{display:flex;flex-direction:column;gap:6px}
@@ -221,7 +221,10 @@ body{
 .leaderboard-panel .lb-bar{height:100%;background:linear-gradient(90deg,var(--accent),#feb47b);border-radius:2px;transition:width .4s ease}
 
 /* ===== DISCOVER ===== */
-.discover-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border-radius:var(--radius);padding:20px;z-index:150;width:360px;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.05);animation:authFade .25s ease}
+.discover-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border-radius:var(--radius);padding:24px 20px 20px;z-index:150;width:360px;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.05);animation:authFade .25s ease}
+.discover-panel .lb-header h3{font-size:17px}
+.discover-panel .lb-close{width:30px;height:30px;font-size:13px;background:var(--card2);color:var(--text3);border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.25s;font-weight:700;flex-shrink:0}
+.discover-panel .lb-close:hover{background:var(--red);color:#fff;transform:rotate(90deg);box-shadow:0 0 14px rgba(231,76,60,.5)}
 .discover-panel .discover-list{display:flex;flex-direction:column;gap:6px}
 .discover-panel .discover-card{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--card2);transition:.2s}
 .discover-panel .discover-card.following{border-color:var(--accent-glow);background:rgba(255,140,66,.04)}
