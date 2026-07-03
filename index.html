@@ -597,10 +597,14 @@ function bindTodayEvents() {
     const id = Number(idStr);
     if (source === 'default') {
       if (defaultsData) defaultsData.activeChallengeId = id;
+      if (userChallengesData) userChallengesData.activeChallengeId = null;
       saveDefaultsToServer();
+      saveUserChallenges();
     } else {
       if (userChallengesData) userChallengesData.activeChallengeId = id;
+      if (defaultsData) defaultsData.activeChallengeId = null;
       saveUserChallenges();
+      saveDefaultsToServer();
     }
     currentDate = new Date();
     renderToday();
