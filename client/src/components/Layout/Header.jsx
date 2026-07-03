@@ -14,7 +14,7 @@ export default function Header() {
     <>
       <div className="header">
         <div>
-          <h1>Challenge Tracker</h1>
+          <h1>Habit Tracker</h1>
           <div className="sub">{today}</div>
         </div>
         <div className="header-right">

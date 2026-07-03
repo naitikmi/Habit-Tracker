@@ -53,7 +53,7 @@ export default function AuthOverlay() {
   return (
     <div className="auth-overlay">
       <div className="auth-box">
-        <h2>Challenge Tracker</h2>
+        <h2>Habit Tracker</h2>
         <div className="sub">{isRegister ? 'Create your account' : 'Sign in to continue'}</div>
         <input
           type="text"
