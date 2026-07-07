@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { daysBetween } from '../../utils/helpers';
+import { daysBetween, todayStr } from '../../utils/helpers';
 import { saveProgress, loadProgress } from '../../utils/api';
 import ChallengeSelector from './ChallengeSelector';
 import DateNav from './DateNav';
@@ -27,6 +27,10 @@ export default function TodayPage() {
   };
 
   const handleToggle = async (habitId) => {
+    if (dateStrKey(currentDate) > todayStr()) {
+      showToast('Cannot check future dates');
+      return;
+    }
     const cur = entryGetter(habitId);
     const newPd = { ...progressData };
     if (!newPd[habitId]) newPd[habitId] = {};
@@ -98,7 +102,7 @@ export default function TodayPage() {
       ) : (
         <>
           <ScoreCard habits={habits} entryGetter={entryGetter} />
-          <CheckList habits={habits} entryGetter={entryGetter} onToggle={handleToggle} />
+          <CheckList habits={habits} entryGetter={entryGetter} onToggle={handleToggle} isFuture={dateStrKey(currentDate) > todayStr()} />
         </>
       )}
     </div>
