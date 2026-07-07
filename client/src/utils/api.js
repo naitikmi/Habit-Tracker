@@ -233,3 +233,27 @@ export async function deleteGroup(id) {
   });
   return r && r.ok;
 }
+
+export async function loadDiscoverableGroups() {
+  const r = await tryFetchAPI('/api/groups/discover/all', { headers: authHeaders() });
+  if (r && r.ok && r.data) return r.data;
+  return [];
+}
+
+export async function joinGroup(id) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/join', {
+    method: 'POST',
+    headers: authHeaders()
+  });
+  if (r && r.ok && r.data) return r.data;
+  return null;
+}
+
+export async function leaveGroup(id) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/leave', {
+    method: 'POST',
+    headers: authHeaders()
+  });
+  if (r && r.ok && r.data) return r.data;
+  return null;
+}

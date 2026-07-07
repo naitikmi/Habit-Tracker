@@ -3,7 +3,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../Layout/Toast';
 import {
   loadGroups, createGroup, getGroup, addGroupMembers, removeGroupMember,
-  getGroupChallenge, saveGroupChallenge, sendGroupMessage, loadGroupMessages, deleteGroup
+  getGroupChallenge, saveGroupChallenge, sendGroupMessage, loadGroupMessages,
+  deleteGroup, loadDiscoverableGroups, joinGroup, leaveGroup
 } from '../../utils/api';
 import { COLORS } from '../../utils/helpers';
 
@@ -20,9 +21,13 @@ export default function GroupsPage() {
   const [groupChallenge, setGroupChallenge] = useState(null);
   const [memberInput, setMemberInput] = useState('');
   const [creating, setCreating] = useState(false);
+  const [discoverGroups, setDiscoverGroups] = useState([]);
   const msgEndRef = useRef(null);
 
-  useEffect(() => { loadGroups().then(setGroups); }, []);
+  useEffect(() => {
+    loadGroups().then(setGroups);
+    loadDiscoverableGroups().then(setDiscoverGroups);
+  }, []);
 
   useEffect(() => {
     if (msgEndRef.current) msgEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -94,6 +99,25 @@ export default function GroupsPage() {
     }
   };
 
+  const handleJoin = async (groupId) => {
+    const updated = await joinGroup(groupId);
+    if (updated) {
+      setGroups(prev => [updated, ...prev]);
+      setDiscoverGroups(prev => prev.filter(g => g._id !== groupId));
+      showToast('Joined group!');
+    }
+  };
+
+  const handleLeave = async (groupId) => {
+    const updated = await leaveGroup(groupId);
+    if (updated) {
+      setGroups(prev => prev.filter(g => g._id !== groupId));
+      setDiscoverGroups(prev => [...prev, updated]);
+      setSelectedGroup(null);
+      showToast('Left group');
+    }
+  };
+
   const handleDeleteGroup = async () => {
     if (!confirm('Delete this group and its challenge?')) return;
     const ok = await deleteGroup(selectedGroup._id);
@@ -139,6 +163,7 @@ export default function GroupsPage() {
         <div className="gp-back-bar">
           <button className="gp-back" onClick={() => setSelectedGroup(null)}>&larr; Back</button>
           <h3>{selectedGroup.name}</h3>
+          <button className="gp-leave-btn" onClick={() => handleLeave(selectedGroup._id)} title="Leave group">Leave</button>
           {(isCreator || isAdmin) && (
             <button className="gp-del" onClick={handleDeleteGroup} title="Delete group">&times;</button>
           )}
@@ -261,6 +286,25 @@ export default function GroupsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {discoverGroups.length > 0 && (
+        <>
+          <h3 className="gp-section-title">Discover Groups</h3>
+          <div className="gp-list">
+            {discoverGroups.map(g => (
+              <div key={g._id} className="gp-card gp-card-discover">
+                <div className="gp-card-info">
+                  <div className="gp-card-name">{g.name}</div>
+                  <div className="gp-card-meta">
+                    {g.members?.length || 0} members &middot; Created by {g.createdBy?.username || 'Unknown'}
+                  </div>
+                </div>
+                <button className="gp-join-btn" onClick={() => handleJoin(g._id)}>Join</button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

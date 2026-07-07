@@ -220,4 +220,51 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// Discover — list all groups the user is NOT in
+router.get('/discover/all', authMiddleware, async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const allGroups = await Group.find({})
+      .populate('members', 'username profilePicture')
+      .populate('createdBy', 'username')
+      .sort({ createdAt: -1 })
+      .lean();
+    const available = allGroups.filter(g => !g.members.some(m => m._id.toString() === req.user.id));
+    res.json({ ok: true, data: available });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Join a group (self-join, any authenticated user)
+router.post('/:id/join', authMiddleware, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+    if (!group) return res.json({ ok: false, error: 'Group not found' });
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    if (group.members.some(m => m.toString() === req.user.id))
+      return res.json({ ok: false, error: 'Already a member' });
+    group.members.push(userId);
+    await group.save();
+    await group.populate('members', 'username profilePicture');
+    res.json({ ok: true, data: group });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Leave a group (self-leave)
+router.post('/:id/leave', authMiddleware, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+    if (!group) return res.json({ ok: false, error: 'Group not found' });
+    group.members = group.members.filter(m => m.toString() !== req.user.id);
+    await group.save();
+    await group.populate('members', 'username profilePicture');
+    res.json({ ok: true, data: group });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 module.exports = router;
