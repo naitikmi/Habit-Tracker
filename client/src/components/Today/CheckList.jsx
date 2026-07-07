@@ -1,20 +1,20 @@
 import React from 'react';
 
-export default function CheckList({ habits, entryGetter, onToggle, isFuture }) {
+export default function CheckList({ habits, entryGetter, onToggle, readonly }) {
   if (!habits || !habits.length) return null;
 
   return (
-    <div className={`checklist${isFuture ? ' future' : ''}`}>
+    <div className={`checklist${readonly ? ' readonly' : ''}`}>
       {habits.map(h => {
         const checked = entryGetter(h.id) > 0;
         const pts = checked ? (h.maxPoints || 10) : 0;
         return (
-          <div className="check-item" key={h.id} data-id={h.id} onClick={isFuture ? undefined : () => onToggle(h.id)}>
+          <div className="check-item" key={h.id} data-id={h.id} onClick={readonly ? undefined : () => onToggle(h.id)}>
             <button
               type="button"
               className={`check-box${checked ? ' done' : ''}`}
-              disabled={isFuture}
-              onClick={(e) => { if (!isFuture) { e.stopPropagation(); onToggle(h.id); } }}
+              disabled={readonly}
+              onClick={(e) => { if (!readonly) { e.stopPropagation(); onToggle(h.id); } }}
             >
               {checked ? '✓' : ''}
             </button>
@@ -22,7 +22,7 @@ export default function CheckList({ habits, entryGetter, onToggle, isFuture }) {
               <div className="ci-name" style={{ color: checked ? 'var(--text2)' : 'var(--text)' }}>
                 {h.name}
               </div>
-              <div className="ci-sub">{checked ? '✓ done' : isFuture ? '— upcoming' : '— pending'}</div>
+              <div className="ci-sub">{checked ? '✓ done' : readonly ? '—' : '— pending'}</div>
             </div>
             <div className="ci-right">
               <div className={`ci-pts ${checked ? 'earned' : 'zero'}`}>+{pts}</div>

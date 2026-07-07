@@ -27,8 +27,8 @@ export default function TodayPage() {
   };
 
   const handleToggle = async (habitId) => {
-    if (dateStrKey(currentDate) > todayStr()) {
-      showToast('Cannot check future dates');
+    if (dateStrKey(currentDate) !== todayStr()) {
+      showToast('Can only update today\'s habits');
       return;
     }
     const cur = entryGetter(habitId);
@@ -102,7 +102,7 @@ export default function TodayPage() {
       ) : (
         <>
           <ScoreCard habits={habits} entryGetter={entryGetter} />
-          <CheckList habits={habits} entryGetter={entryGetter} onToggle={handleToggle} isFuture={dateStrKey(currentDate) > todayStr()} />
+          <CheckList habits={habits} entryGetter={entryGetter} onToggle={handleToggle} readonly={dateStrKey(currentDate) !== todayStr()} />
         </>
       )}
     </div>
