@@ -7,8 +7,8 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Create a group (admin only)
-router.post('/', authMiddleware, adminMiddleware, async (req, res) => {
+// Create a group (any authenticated user)
+router.post('/', authMiddleware, async (req, res) => {
   try {
     const { name, memberIds } = req.body;
     if (!name || !name.trim()) return res.json({ ok: false, error: 'Group name required' });

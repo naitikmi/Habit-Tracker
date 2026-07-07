@@ -256,7 +256,7 @@ export default function GroupsPage() {
     <div className="groups-page">
       <div className="gp-header">
         <h2>Groups</h2>
-        {isAdmin && <button className="gp-create-btn" onClick={() => setShowCreate(true)}>+ New Group</button>}
+        <button className="gp-create-btn" onClick={() => setShowCreate(true)}>+ New Group</button>
       </div>
 
       {showCreate && (
@@ -270,7 +270,7 @@ export default function GroupsPage() {
       {groups.length === 0 ? (
         <div className="empty-state">
           <p>No groups yet</p>
-          {isAdmin && <p style={{ fontSize: '12px', color: 'var(--text2)' }}>Create a group to get started</p>}
+          <p style={{ fontSize: '12px', color: 'var(--text2)' }}>Create a group or join one below</p>
         </div>
       ) : (
         <div className="gp-list">
