@@ -6,6 +6,7 @@ const authRoutes = require('./routes/auth');
 const challengeRoutes = require('./routes/challenges');
 const progressRoutes = require('./routes/progress');
 const leaderboardRoutes = require('./routes/leaderboard');
+const groupRoutes = require('./routes/groups');
 const User = require('./models/User');
 const crypto = require('crypto');
 const Challenge = require('./models/Challenge');
@@ -23,6 +24,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/groups', groupRoutes);
 
 // Serve React build in production
 const clientBuild = path.join(__dirname, '..', 'client', 'dist');

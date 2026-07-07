@@ -10,6 +10,7 @@ import TodayPage from './components/Today/TodayPage';
 import DashboardPage from './components/Dashboard/DashboardPage';
 import ChartsPage from './components/Charts/ChartsPage';
 import SettingsPage from './components/Settings/SettingsPage';
+import GroupsPage from './components/Groups/GroupsPage';
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -26,6 +27,7 @@ function AppContent() {
       case 'today': return <TodayPage />;
       case 'dashboard': return <DashboardPage />;
       case 'charts': return <ChartsPage />;
+      case 'groups': return <GroupsPage />;
       case 'settings': return <SettingsPage />;
       default: return <TodayPage />;
     }

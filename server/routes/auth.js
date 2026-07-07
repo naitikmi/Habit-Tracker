@@ -126,4 +126,17 @@ router.put('/password', authMiddleware, async (req, res) => {
   }
 });
 
+// Search user by username (for adding to groups)
+router.get('/search', authMiddleware, async (req, res) => {
+  try {
+    const q = req.query.q;
+    if (!q) return res.json({ ok: false, error: 'Query required' });
+    const user = await User.findOne({ username: q }).lean();
+    if (!user) return res.json({ ok: false, error: 'User not found' });
+    res.json({ ok: true, data: { _id: user._id, username: user.username, profilePicture: user.profilePicture || '' } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 module.exports = router;

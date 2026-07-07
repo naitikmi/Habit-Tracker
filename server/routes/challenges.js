@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Challenge = require('../models/Challenge');
 const ActiveChallenge = require('../models/ActiveChallenge');
+const Group = require('../models/Group');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
@@ -110,18 +111,31 @@ router.get('/community', authMiddleware, async (req, res) => {
   }
 });
 
-// Get ALL challenges (defaults + all user challenges) with full details for dropdown
+// Get ALL challenges (defaults + user + group) with full details for dropdown
 router.get('/all', authMiddleware, async (req, res) => {
   try {
-    const [defaults, userChallenges] = await Promise.all([
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const isAdmin = req.user.role === 'admin';
+
+    const [defaults, userChallenges, userGroups] = await Promise.all([
       Challenge.find({ type: 'default' }).sort({ _id: 1 }).lean(),
-      Challenge.find({ type: 'user' }).populate('owner', 'username').sort({ _id: 1 }).lean()
+      Challenge.find({ type: 'user' }).populate('owner', 'username').sort({ _id: 1 }).lean(),
+      isAdmin ? Group.find({}).lean() : Group.find({ members: userId }).lean()
     ]);
 
     const all = [
       ...defaults.map(c => ({ ...c, _source: 'default' })),
       ...userChallenges.map(c => ({ ...c, _source: 'user', creatorName: c.owner?.username || 'Unknown' }))
     ];
+
+    // Add group challenges
+    for (const group of userGroups) {
+      if (!group.challengeId) continue;
+      const challenge = await Challenge.findOne({ id: group.challengeId }).lean();
+      if (challenge) {
+        all.push({ ...challenge, _source: 'group', creatorName: 'Group: ' + group.name });
+      }
+    }
 
     res.json({ ok: true, data: { challenges: all } });
   } catch (e) {

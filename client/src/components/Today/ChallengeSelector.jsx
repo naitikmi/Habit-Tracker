@@ -46,6 +46,7 @@ export default function ChallengeSelector({ onChange }) {
 
   const getLabel = (c) => {
     if (c._source === 'default') return '';
+    if (c._source === 'group') return '👥 ';
     if (c._source === 'user' && c.creatorName) return '👤 ' + c.creatorName;
     return '👤 ';
   };

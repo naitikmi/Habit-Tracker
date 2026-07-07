@@ -155,3 +155,81 @@ export async function changePassword(currentPassword, newPassword) {
   if (r && r.ok) return { success: true };
   return { success: false, error: r ? r.error : 'Server error' };
 }
+
+// Groups API
+export async function loadGroups() {
+  const r = await tryFetchAPI('/api/groups', { headers: authHeaders() });
+  if (r && r.ok && r.data) return r.data;
+  return [];
+}
+
+export async function createGroup(name, memberIds) {
+  const r = await tryFetchAPI('/api/groups', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ name, memberIds })
+  });
+  return r && r.ok ? r.data : null;
+}
+
+export async function getGroup(id) {
+  const r = await tryFetchAPI('/api/groups/' + id, { headers: authHeaders() });
+  if (r && r.ok && r.data) return r.data;
+  return null;
+}
+
+export async function addGroupMembers(id, memberIds) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/members', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ memberIds })
+  });
+  return r && r.ok ? r.data : null;
+}
+
+export async function removeGroupMember(id, userId) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/members/' + userId, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  return r && r.ok ? r.data : null;
+}
+
+export async function getGroupChallenge(id) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/challenge', { headers: authHeaders() });
+  if (r && r.ok) return r.data;
+  return null;
+}
+
+export async function saveGroupChallenge(id, data) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/challenge', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(data)
+  });
+  return r && r.ok ? r.data : null;
+}
+
+export async function sendGroupMessage(id, text) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/messages', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ text })
+  });
+  if (r && r.ok && r.data) return r.data;
+  return null;
+}
+
+export async function loadGroupMessages(id) {
+  const r = await tryFetchAPI('/api/groups/' + id + '/messages', { headers: authHeaders() });
+  if (r && r.ok && r.data) return r.data;
+  return [];
+}
+
+export async function deleteGroup(id) {
+  const r = await tryFetchAPI('/api/groups/' + id, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  return r && r.ok;
+}

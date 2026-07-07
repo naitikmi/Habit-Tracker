@@ -15,7 +15,8 @@ router.get('/:challengeId', async (req, res) => {
 
     const query = { id: challengeId };
     if (source === 'default') query.type = 'default';
-    else query.type = 'user';
+    else if (source === 'user') query.type = 'user';
+    else query.type = 'group';
 
     const challenge = await Challenge.findOne(query).sort({ _id: -1 }).lean();
     if (!challenge) return res.json({ ok: false, error: 'Challenge not found' });
