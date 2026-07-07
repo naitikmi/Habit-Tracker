@@ -7,6 +7,7 @@ const challengeRoutes = require('./routes/challenges');
 const progressRoutes = require('./routes/progress');
 const leaderboardRoutes = require('./routes/leaderboard');
 const User = require('./models/User');
+const crypto = require('crypto');
 const Challenge = require('./models/Challenge');
 const mongoose = require('mongoose');
 const ActiveChallenge = require('./models/ActiveChallenge');
@@ -66,12 +67,32 @@ async function migrateFromDataStore() {
 async function backfillChallengeIds() {
   const missing = await Challenge.find({ id: { $exists: false } });
   for (const ch of missing) {
-    // Find highest existing id for this type to assign a new one
-    const max = await Challenge.findOne({ type: ch.type }).sort({ id: -1 }).select('id').lean();
-    ch.id = (max?.id || 0) + 1;
+    ch.id = crypto.randomUUID();
     await ch.save();
   }
   if (missing.length) console.log(`Backfilled id for ${missing.length} challenges`);
+}
+
+async function migrateNumericIdsToString() {
+  const Progress = require('./models/Progress');
+
+  const numeric = await Challenge.find({ id: { $type: 'number' } }).lean();
+  if (!numeric.length) return;
+  console.log(`Migrating ${numeric.length} challenges from numeric to string IDs...`);
+
+  const idMap = new Map();
+  for (const ch of numeric) {
+    const uuid = crypto.randomUUID();
+    idMap.set(String(ch.id), uuid);
+    await Challenge.updateOne({ _id: ch._id }, { $set: { id: uuid } });
+  }
+
+  for (const [oldId, newId] of idMap) {
+    await ActiveChallenge.updateMany({ challengeId: oldId }, { $set: { challengeId: newId } });
+    await Progress.updateMany({ challengeId: oldId }, { $set: { challengeId: newId } });
+  }
+
+  console.log('Migration complete');
 }
 
 async function seedDefaultChallenges() {
@@ -79,7 +100,7 @@ async function seedDefaultChallenges() {
   if (count > 0) return;
   const defaults = [
     {
-      id: 1, name: '30-Day Fitness', days: 30, startDate: new Date().toISOString().slice(0, 10),
+      id: crypto.randomUUID(), name: '30-Day Fitness', days: 30, startDate: new Date().toISOString().slice(0, 10),
       habits: [
         { id: 1, name: 'Exercise 30 min', maxPoints: 10, color: '#ff8c42' },
         { id: 2, name: 'Drink 8 glasses water', maxPoints: 10, color: '#2ecc71' },
@@ -88,7 +109,7 @@ async function seedDefaultChallenges() {
       ], nextHabitId: 5
     },
     {
-      id: 2, name: 'Mindfulness Month', days: 30, startDate: new Date().toISOString().slice(0, 10),
+      id: crypto.randomUUID(), name: 'Mindfulness Month', days: 30, startDate: new Date().toISOString().slice(0, 10),
       habits: [
         { id: 1, name: 'Meditate 10 min', maxPoints: 10, color: '#3498db' },
         { id: 2, name: 'Journal', maxPoints: 10, color: '#e91e63' },
@@ -117,10 +138,12 @@ async function start() {
   console.log('Admin account ready');
   if (!process.env.ADMIN_PASSWORD) console.log('Admin password:', adminPassword, '(set ADMIN_PASSWORD env to use a fixed password)');
 
-  // Backfill numeric id for challenges saved before schema fix
+  // Backfill missing ids for challenges saved before schema fix
   await backfillChallengeIds();
   // Migrate from old DataStore format if present
   await migrateFromDataStore();
+  // Migrate existing numeric ids to string UUIDs (after DataStore migration)
+  await migrateNumericIdsToString();
   // Seed default challenges if none exist
   await seedDefaultChallenges();
 

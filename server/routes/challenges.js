@@ -6,11 +6,10 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get default challenges (public) — returns as { challenges, nextChallengeId }
+// Get default challenges (public)
 router.get('/default', async (req, res) => {
   const challenges = await Challenge.find({ type: 'default' }).sort({ _id: 1 }).lean();
-  const maxId = challenges.reduce((m, c) => Math.max(m, c.id || 0), 0);
-  res.json({ ok: true, data: { challenges, nextChallengeId: maxId + 1 } });
+  res.json({ ok: true, data: { challenges } });
 });
 
 // Save/replace default challenges (admin only)
@@ -33,11 +32,10 @@ router.post('/default', authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
-// Get user challenges — returns as { challenges, nextChallengeId }
+// Get user challenges
 router.get('/user', authMiddleware, async (req, res) => {
   const challenges = await Challenge.find({ type: 'user', owner: new mongoose.Types.ObjectId(req.user.id) }).sort({ _id: 1 }).lean();
-  const maxId = challenges.reduce((m, c) => Math.max(m, c.id || 0), 0);
-  res.json({ ok: true, data: { challenges, nextChallengeId: maxId + 1 } });
+  res.json({ ok: true, data: { challenges } });
 });
 
 // Save/replace user challenges
@@ -125,8 +123,7 @@ router.get('/all', authMiddleware, async (req, res) => {
       ...userChallenges.map(c => ({ ...c, _source: 'user', creatorName: c.owner?.username || 'Unknown' }))
     ];
 
-    const maxId = all.reduce((m, c) => Math.max(m, c.id || 0), 0);
-    res.json({ ok: true, data: { challenges: all, nextChallengeId: maxId + 1 } });
+    res.json({ ok: true, data: { challenges: all } });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

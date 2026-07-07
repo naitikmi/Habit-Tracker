@@ -9,9 +9,9 @@ const router = express.Router();
 
 router.get('/:challengeId', async (req, res) => {
   try {
-    const challengeId = Number(req.params.challengeId);
+    const challengeId = req.params.challengeId;
     const source = req.query.source || 'default';
-    if (isNaN(challengeId)) return res.json({ ok: false, error: 'Invalid challenge ID' });
+    if (!challengeId) return res.json({ ok: false, error: 'Invalid challenge ID' });
 
     const query = { id: challengeId };
     if (source === 'default') query.type = 'default';

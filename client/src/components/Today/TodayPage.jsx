@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { daysBetween } from '../../utils/helpers';
-import { saveProgress } from '../../utils/api';
+import { saveProgress, loadProgress } from '../../utils/api';
 import ChallengeSelector from './ChallengeSelector';
 import DateNav from './DateNav';
 import ScoreCard from './ScoreCard';
@@ -35,8 +35,11 @@ export default function TodayPage() {
     await saveProgress(newPd);
   };
 
-  const handleChallengeChange = () => {
+  const handleChallengeChange = async () => {
     setCurrentDate(new Date());
+    setProgressData({});
+    const pr = await loadProgress();
+    setProgressData(pr || {});
   };
 
   if (!activeChallenge || !habits.length) {

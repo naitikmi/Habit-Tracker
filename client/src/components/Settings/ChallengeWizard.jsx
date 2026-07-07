@@ -4,6 +4,14 @@ import { saveDefaultsToServer, saveUserChallenges } from '../../utils/api';
 import { todayStr, COLORS } from '../../utils/helpers';
 import { useToast } from '../Layout/Toast';
 
+function uid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 export default function ChallengeWizard({ editChallenge, source, onCancel }) {
   const { defaultsData, setDefaultsData, userChallengesData, setUserChallengesData, refreshData } = useData();
   const { showToast } = useToast();
@@ -61,10 +69,9 @@ export default function ChallengeWizard({ editChallenge, source, onCancel }) {
     const store = source === 'user' ? userChallengesData : defaultsData;
     let target = store;
     if (!target) {
-      target = { challenges: [], activeChallengeId: null, nextChallengeId: 1 };
+      target = { challenges: [], activeChallengeId: null };
     }
     if (!target.challenges) target.challenges = [];
-    if (!target.nextChallengeId) target.nextChallengeId = (target.challenges.length || 0) + 1;
 
     const colorIdx = habitList.length;
     const finalHabits = habitList.map((h, i) => ({
@@ -81,7 +88,7 @@ export default function ChallengeWizard({ editChallenge, source, onCancel }) {
       editChallenge.habits = finalHabits;
       editChallenge.nextHabitId = finalHabits.length + 1;
     } else {
-      const newId = target.nextChallengeId++;
+      const newId = uid();
       target.challenges.push({
         id: newId,
         name: name.trim(),

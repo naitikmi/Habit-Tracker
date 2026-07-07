@@ -91,13 +91,13 @@ export function getChallenges(defaultsData, userChallengesData, allChallengesDat
   const all = (allChallengesData && allChallengesData.challenges) || [];
   const seen = new Set();
   const merged = [];
-  for (const c of defaults) { merged.push({ ...c, _source: 'default' }); seen.add('default:' + c.id); }
-  for (const c of users) { merged.push({ ...c, _source: 'user' }); seen.add('user:' + c.id); }
+  for (const c of defaults) { merged.push({ ...c, _source: 'default' }); if (c._id) seen.add(String(c._id)); }
+  for (const c of users) { merged.push({ ...c, _source: 'user' }); if (c._id) seen.add(String(c._id)); }
   for (const c of all) {
-    const key = (c._source || 'unknown') + ':' + c.id;
-    if (!seen.has(key)) {
+    const id = c._id ? String(c._id) : ((c._source || 'unknown') + ':' + c.id);
+    if (!seen.has(id)) {
       merged.push({ ...c, _source: c._source || 'community' });
-      seen.add(key);
+      seen.add(id);
     }
   }
   return merged;

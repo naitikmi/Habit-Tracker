@@ -12,8 +12,7 @@ export default function ChallengeSelector({ onChange }) {
   const selectValue = activeSource && activeId ? activeSource + ':' + activeId : '';
 
   const handleChange = async (e) => {
-    const [source, idStr] = e.target.value.split(':');
-    const id = Number(idStr);
+    const [source, id] = e.target.value.split(':');
 
     // Update all sources to track active challenge
     if (allChallengesData) {
@@ -21,11 +20,11 @@ export default function ChallengeSelector({ onChange }) {
       setAllChallengesData(updated);
     }
     if (source === 'default') {
-      const dd = { ...(defaultsData || { challenges: [], activeChallengeId: null, nextChallengeId: 1 }), activeChallengeId: id };
+      const dd = { ...(defaultsData || { challenges: [], activeChallengeId: null }), activeChallengeId: id };
       setDefaultsData(dd);
       if (userChallengesData) setUserChallengesData({ ...userChallengesData, activeChallengeId: null });
     } else {
-      const uc = { ...(userChallengesData || { challenges: [], activeChallengeId: null, nextChallengeId: 1 }), activeChallengeId: id };
+      const uc = { ...(userChallengesData || { challenges: [], activeChallengeId: null }), activeChallengeId: id };
       setUserChallengesData(uc);
       if (defaultsData) setDefaultsData({ ...defaultsData, activeChallengeId: null });
     }
