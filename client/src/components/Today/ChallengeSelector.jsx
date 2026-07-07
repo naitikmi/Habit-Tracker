@@ -7,8 +7,18 @@ export default function ChallengeSelector({ onChange }) {
   const { defaultsData, setDefaultsData, userChallengesData, setUserChallengesData, allChallengesData, setAllChallengesData } = useData();
   const challenges = getChallenges(defaultsData, userChallengesData, allChallengesData);
 
-  const activeId = allChallengesData?.activeChallengeId || defaultsData?.activeChallengeId || userChallengesData?.activeChallengeId || null;
-  const activeSource = allChallengesData?.activeSource || defaultsData?.activeChallengeId ? 'default' : userChallengesData?.activeChallengeId ? 'user' : null;
+  let activeId = null;
+  let activeSource = null;
+  if (allChallengesData?.activeChallengeId && allChallengesData?.activeSource) {
+    activeId = allChallengesData.activeChallengeId;
+    activeSource = allChallengesData.activeSource;
+  } else if (defaultsData?.activeChallengeId) {
+    activeId = defaultsData.activeChallengeId;
+    activeSource = 'default';
+  } else if (userChallengesData?.activeChallengeId) {
+    activeId = userChallengesData.activeChallengeId;
+    activeSource = 'user';
+  }
   const selectValue = activeSource && activeId ? activeSource + ':' + activeId : '';
 
   const handleChange = async (e) => {

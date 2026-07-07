@@ -20,7 +20,11 @@ router.get('/:challengeId', async (req, res) => {
     const challenge = await Challenge.findOne(query).sort({ _id: -1 }).lean();
     if (!challenge) return res.json({ ok: false, error: 'Challenge not found' });
 
-    const habitMaxSum = challenge.habits.reduce((s, h) => s + (h.maxPoints || 10), 0);
+    const habitMaxMap = {};
+    for (const h of challenge.habits) {
+      habitMaxMap[h.id] = h.maxPoints || 10;
+    }
+    const habitMaxSum = Object.values(habitMaxMap).reduce((s, v) => s + v, 0);
 
     // Get all followers (users who have this as active challenge)
     const followers = await ActiveChallenge.find({ challengeId, source }).lean();
@@ -52,7 +56,10 @@ router.get('/:challengeId', async (req, res) => {
         if (typeof dateMap === 'object' && dateMap !== null) {
           for (const dateStr of Object.keys(dateMap)) {
             dateSet.add(dateStr);
-            totalEarned += Number(dateMap[dateStr]) || 0;
+            const val = Number(dateMap[dateStr]) || 0;
+            if (val > 0) {
+              totalEarned += habitMaxMap[habitId] || 10;
+            }
           }
         }
       }
