@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loadDefaults, loadUserChallenges, loadProgress, loadActiveChallenge, tryFetchAPI, authHeaders } from '../utils/api';
-import { getActiveChallenge, getActiveHabits } from '../utils/helpers';
+import { loadDefaults, loadUserChallenges, loadProgress, loadActiveChallenge, tryFetchAPI, authHeaders, saveActiveChallenge, saveFollowedChallenge } from '../utils/api';
+import { getActiveChallenge, getActiveHabits, getChallenges, getChallengeEnd } from '../utils/helpers';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
@@ -73,6 +73,33 @@ export function DataProvider({ children }) {
 
   const activeChallenge = getActiveChallenge(defaultsData, userChallengesData, allChallengesData);
   const habits = activeChallenge ? activeChallenge.habits : [];
+
+  // If the active challenge has ended, switch away from it — centralized here (not just in
+  // the Today-page dropdown) so it applies no matter which page loads first. Also corrects
+  // the server-side ActiveChallenge pointer and reloads progress, since /api/progress reads
+  // the server pointer directly — a client-only fix would show the right challenge info with
+  // mismatched, stale progress checkboxes underneath it.
+  useEffect(() => {
+    if (!loaded || !activeChallenge) return;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = getChallengeEnd(activeChallenge);
+    if (!end || today <= end) return;
+
+    const list = getChallenges(defaultsData, userChallengesData, allChallengesData);
+    const next = list.find(c => {
+      const e = getChallengeEnd(c);
+      return !e || today <= e;
+    });
+    if (next) {
+      (async () => {
+        await saveActiveChallenge(next.id, next._source);
+        await saveFollowedChallenge(next.id, next._source);
+        await refreshData();
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, activeChallenge?.id, activeChallenge?._source]);
 
   return (
     <DataContext.Provider value={{

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
@@ -128,17 +129,20 @@ async function start() {
   await connectDB();
 
   // Seed admin
-  const adminPassword = process.env.ADMIN_PASSWORD || (function(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$'; let r=''; for(let i=0;i<12;i++) r+=c[Math.floor(Math.random()*c.length)]; return r; })();
   const existing = await User.findOne({ username: 'naitikmishra' });
   if (existing) {
     existing.role = 'admin';
     if (!existing.email) existing.email = 'naitik@admin.com';
+    if (process.env.ADMIN_PASSWORD) existing.password = process.env.ADMIN_PASSWORD;
     await existing.save();
+    console.log('Admin account ready');
+    if (!process.env.ADMIN_PASSWORD) console.log('Admin account already exists; password unchanged (set ADMIN_PASSWORD to reset it)');
   } else {
+    const adminPassword = process.env.ADMIN_PASSWORD || (function(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$'; let r=''; for(let i=0;i<12;i++) r+=c[Math.floor(Math.random()*c.length)]; return r; })();
     await User.create({ username: 'naitikmishra', email: 'naitik@admin.com', password: adminPassword, role: 'admin' });
+    console.log('Admin account ready');
+    if (!process.env.ADMIN_PASSWORD) console.log('Admin password:', adminPassword, '(set ADMIN_PASSWORD env to use a fixed password)');
   }
-  console.log('Admin account ready');
-  if (!process.env.ADMIN_PASSWORD) console.log('Admin password:', adminPassword, '(set ADMIN_PASSWORD env to use a fixed password)');
 
   // Backfill missing ids for challenges saved before schema fix
   await backfillChallengeIds();

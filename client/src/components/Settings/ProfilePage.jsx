@@ -1,12 +1,23 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { updateProfile, changePassword } from '../../utils/api';
+import { updateProfile, changePassword, loadChallengeHistory } from '../../utils/api';
 import { useToast } from '../Layout/Toast';
 
 export default function ProfilePage() {
   const { user, setUser } = useAuth();
   const { showToast } = useToast();
   const fileRef = useRef();
+  const isAdmin = user?.role === 'admin';
+
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    loadChallengeHistory().then(data => {
+      setHistory(data);
+      setHistoryLoading(false);
+    });
+  }, []);
 
   const [username, setUsername] = useState(user?.username || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -151,6 +162,64 @@ export default function ProfilePage() {
               {cpSaving ? 'Changing...' : 'Update Password'}
             </button>
           </div>
+        )}
+      </div>
+
+      <div className="profile-section" style={{ marginTop: '10px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+          {isAdmin ? 'Ended Challenges (All Users)' : 'Completed Challenges'}
+        </div>
+        {historyLoading ? (
+          <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Loading...</div>
+        ) : history.length === 0 ? (
+          <div style={{ fontSize: '11px', color: 'var(--text3)' }}>
+            {isAdmin
+              ? 'No challenges have ended yet.'
+              : "No completed challenges yet — they'll show up here once a challenge you've tracked progress on runs its full course."}
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '10px' }}>
+              {isAdmin ? (
+                (() => {
+                  const tracked = history.filter(h => h.tracked);
+                  const untracked = history.length - tracked.length;
+                  const avg = tracked.length ? Math.round(tracked.reduce((s, h) => s + h.percentage, 0) / tracked.length) : 0;
+                  return `${history.length} ended challenge${history.length !== 1 ? 's' : ''} across all users` +
+                    (tracked.length ? ` · avg ${avg}% on the ${tracked.length} completed` : '') +
+                    (untracked ? ` · ${untracked} never attempted` : '');
+                })()
+              ) : (
+                `${history.length} challenge${history.length !== 1 ? 's' : ''} completed · avg ${Math.round(history.reduce((s, h) => s + h.percentage, 0) / history.length)}% performance`
+              )}
+            </div>
+            <div className="challenge-list">
+              {history.map(h => {
+                const color = !h.tracked ? 'var(--text3)' : h.percentage >= 66 ? 'var(--green)' : h.percentage >= 33 ? 'var(--amber)' : 'var(--red)';
+                return (
+                  <div className="challenge-card" style={{ cursor: 'default' }} key={h.challengeId + '-' + (h.username || 'none')}>
+                    <div className="cc-info">
+                      <div className="cc-name">
+                        {h.name}
+                        {isAdmin && (
+                          <span style={{ color: 'var(--text3)', fontWeight: 400 }}>
+                            {' '}&middot; {h.tracked ? `by ${h.username}` : 'not attempted by anyone'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="cc-sub">
+                        {h.startDate} &rarr; {h.endDate} &middot; created by {h.creatorName || 'Unknown'}
+                        {h.tracked ? <> &middot; {h.totalEarned}/{h.totalPossible} pts &middot; {h.daysTracked}/{h.days} days tracked</> : null}
+                      </div>
+                    </div>
+                    <div className="cc-check" style={{ borderColor: color, background: color, color: '#fff', fontSize: '10px', fontWeight: 700, width: 'auto', minWidth: '34px', borderRadius: '10px', padding: '2px 6px' }}>
+                      {h.tracked ? `${h.percentage}%` : '—'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>

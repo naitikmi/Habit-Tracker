@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server/index.js",
     "build": "cd client && npm install && npm run build",
-    "dev:server": "node server/index.js",
+    "dev:server": "node -e \"process.env.PORT=3000;require('./server/index.js')\"",
     "dev:client": "cd client && npm run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "install:all": "npm install && cd client && npm install",
@@ -15,6 +15,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.0.0"

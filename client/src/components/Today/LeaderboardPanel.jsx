@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { tryFetchAPI } from '../../utils/api';
+import { tryFetchAPI, authHeaders } from '../../utils/api';
 
 export default function LeaderboardPanel({ challengeId, challengeName, challengeSource, onClose }) {
   const [data, setData] = useState(null);
@@ -7,7 +7,7 @@ export default function LeaderboardPanel({ challengeId, challengeName, challenge
 
   useEffect(() => {
     (async () => {
-      const r = await tryFetchAPI('/api/leaderboard/' + challengeId + '?source=' + (challengeSource || 'default'));
+      const r = await tryFetchAPI('/api/leaderboard/' + challengeId + '?source=' + (challengeSource || 'default'), { headers: authHeaders() });
       if (r && r.ok) setData(r.data);
       setLoading(false);
     })();

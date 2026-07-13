@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useData } from '../../contexts/DataContext';
 import { useToast } from '../Layout/Toast';
 import {
   loadGroups, createGroup, getGroup, addGroupMembers, removeGroupMember,
@@ -10,6 +11,7 @@ import { COLORS } from '../../utils/helpers';
 
 export default function GroupsPage() {
   const { user } = useAuth();
+  const { refreshData } = useData();
   const { showToast } = useToast();
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
@@ -105,6 +107,7 @@ export default function GroupsPage() {
       setGroups(prev => [updated, ...prev]);
       setDiscoverGroups(prev => prev.filter(g => g._id !== groupId));
       showToast('Joined group!');
+      refreshData();
     }
   };
 
@@ -115,6 +118,7 @@ export default function GroupsPage() {
       setDiscoverGroups(prev => [...prev, updated]);
       setSelectedGroup(null);
       showToast('Left group');
+      refreshData();
     }
   };
 
@@ -125,6 +129,7 @@ export default function GroupsPage() {
       setGroups(prev => prev.filter(g => g._id !== selectedGroup._id));
       setSelectedGroup(null);
       showToast('Group deleted');
+      refreshData();
     }
   };
 
@@ -149,6 +154,7 @@ export default function GroupsPage() {
       setGroupChallenge(result);
       setShowChallengeForm(false);
       showToast('Challenge created!');
+      refreshData();
     } else {
       showToast('Failed to create challenge');
     }
@@ -203,7 +209,7 @@ export default function GroupsPage() {
           {groupChallenge ? (
             <div className="gp-challenge-card">
               <strong>{groupChallenge.name}</strong>
-              <span className="gp-challenge-meta">{groupChallenge.habitsCount} habits &middot; {groupChallenge.days} days</span>
+              <span className="gp-challenge-meta">{groupChallenge.habitsCount ?? groupChallenge.habits?.length ?? 0} habits &middot; {groupChallenge.days} days</span>
               {(isCreator || isAdmin) && (
                 <button className="gp-edit-challenge-btn" onClick={() => setShowChallengeForm(true)}>Edit</button>
               )}

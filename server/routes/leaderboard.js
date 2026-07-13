@@ -1,13 +1,14 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Progress = require('../models/Progress');
-const ActiveChallenge = require('../models/ActiveChallenge');
+const Follow = require('../models/Follow');
 const Challenge = require('../models/Challenge');
 const User = require('../models/User');
+const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/:challengeId', async (req, res) => {
+router.get('/:challengeId', authMiddleware, async (req, res) => {
   try {
     const challengeId = req.params.challengeId;
     const source = req.query.source || 'default';
@@ -27,12 +28,13 @@ router.get('/:challengeId', async (req, res) => {
     }
     const habitMaxSum = Object.values(habitMaxMap).reduce((s, v) => s + v, 0);
 
-    // Get all followers (users who have this as active challenge)
-    const followers = await ActiveChallenge.find({ challengeId, source }).lean();
+// Only users who explicitly follow this challenge appear on its leaderboard —
+    // having progress on it or having it as your active challenge isn't enough on its own.
+    const followers = await Follow.find({ challengeId, source }).lean();
     const followerUserIds = followers.map(f => f.user.toString());
 
-    // Get all users with progress for this challenge
-    const progressDocs = await Progress.find({ challengeId }).lean();
+    // Get progress for just those followers
+    const progressDocs = await Progress.find({ challengeId, user: { $in: followers.map(f => f.user) } }).lean();
 
     // Build a map of userId -> progress data
     const progressMap = {};
@@ -40,11 +42,8 @@ router.get('/:challengeId', async (req, res) => {
       progressMap[doc.user.toString()] = doc.entries || {};
     }
 
-    // Merge followers + progress users into a unique set
-    const userIds = new Set([...followerUserIds, ...Object.keys(progressMap)]);
-
     const entries = [];
-    for (const userId of userIds) {
+    for (const userId of followerUserIds) {
       const user = await User.findById(userId).lean();
       if (!user) continue;
 

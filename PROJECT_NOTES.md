@@ -1,0 +1,271 @@
+# Habit Tracker — Project Notes
+
+Living documentation of the codebase, generated from a full source read-through plus a hands-on walkthrough of the running app as both an **admin** account (`naitikmishra`) and a fresh **regular user** account (`testuser1`). Update this file as the app evolves — it's meant to be the single place that explains how everything fits together and what's known to be broken.
+
+Last verified: 2026-07-13 (bug fixes applied and re-verified live, see §8; local dev now connects to the real production database via `.env` + `dotenv`, see §9; ownership-based visibility + expiry filtering + admin's full ended-challenges inventory + Follow model with dropdown auto-follow + centralized expiry auto-switch shipped, see §7).
+
+---
+
+## 1. Stack & Architecture
+
+- **Type**: MERN (MongoDB, Express, React, Node), single deployable service.
+- **Server**: Express (`server/index.js`), port `3000` by default (`process.env.PORT`).
+- **Client**: React 18 + Vite 5 (`client/`), dev server on port `5173`, proxies `/api/*` to `http://localhost:3000` (see `client/vite.config.js`).
+- **Database**: MongoDB via Mongoose. Connection string from `MONGODB_URI`, defaults to `mongodb://localhost:27017/habit-tracker` if unset. Locally this now points at the **real production database** via a gitignored `.env` file loaded by the `dotenv` package (see §9) — no local fixture data is used anymore.
+- **Auth**: JWT (`jsonwebtoken`), 30-day expiry, stored client-side in `localStorage` under key `challengeToken`. Secret from `JWT_SECRET` env var (falls back to a hardcoded dev string — **must** be set in production).
+- **Production serving**: Express serves the built client (`client/dist`) as static files and falls back to `index.html` for any non-`/api` route (SPA routing). Build command: `npm run build` → `cd client && npm install && npm run build`.
+- **Deploy target**: Render (`render.yaml`), free web service plan, env vars `MONGODB_URI`, `ADMIN_PASSWORD`, `JWT_SECRET` must be set there.
+
+### Local dev quirk (fixed)
+Running both processes via `concurrently` under the Claude Code preview tool caused `PORT` to be injected as `5173` for **both** the Vite process and the Express process (since the tool sets `PORT` to match the configured dev-server port). Express would then bind to 5173 instead of 3000, breaking Vite's `/api` proxy (nothing listening on 3000). Fixed by pinning the server's dev script in [package.json](package.json:9):
+```json
+"dev:server": "node -e \"process.env.PORT=3000;require('./server/index.js')\""
+```
+Production is unaffected — `render.yaml` calls `node server/index.js` directly, and Render sets `PORT` itself with nothing else competing for it.
+
+---
+
+## 2. Data Models (`server/models/`)
+
+| Model | Fields | Notes |
+|---|---|---|
+| **User** | `username` (unique), `email` (unique, lowercased), `password` (bcrypt-hashed, 10 rounds), `role` (`user`\|`admin`, default `user`), `profilePicture` (string — often a base64 data URL, see §6) | `comparePassword()` method; `toJSON()` strips password |
+| **Challenge** | `id` (UUID string, app-level id — **not** `_id`), `type` (`default`\|`user`\|`group`), `owner` (User ref, null for defaults), `name`, `days`, `startDate` (string `YYYY-MM-DD`), `habits[]` (`{id, name, maxPoints, color}`), `nextHabitId` | One collection holds all three challenge kinds, distinguished by `type` |
+| **ActiveChallenge** | `user` (unique), `challengeId`, `source` (`default`\|`user`\|`group`) | One row per user — tracks which single challenge you're *tracking today* (drives the Today-page checklist + `/progress`) |
+| **Follow** | `user` (unique), `challengeId`, `source` (`default`\|`user`\|`group`) | Added 2026-07-12 (§7f) — tracks which single challenge you *follow* (drives Discover's badge + who appears on that challenge's leaderboard). The Today-page dropdown auto-follows whatever it makes active (see §7f), so in practice this usually mirrors `ActiveChallenge` — but Discover's Follow button can independently point it at a different challenge without touching what's active |
+| **Progress** | `user`, `challengeId`, `entries` (Mixed: `{habitId: {dateStr: 0\|1}}`) | Unique index on `(user, challengeId)` — **progress is stored per (user, challenge) pair**, so switching active challenges switches which progress blob loads |
+| **Group** | `name`, `createdBy` (User ref), `members[]` (User refs), `challengeId` (nullable, points at a `type:'group'` Challenge) | |
+| **GroupMessage** | `group`, `sender`, `text` | Simple flat chat log per group, no pagination |
+
+**Important scoping rule**: `GET /api/progress` only ever returns progress for the user's *currently active* challenge (looked up via `ActiveChallenge`). There is no endpoint to fetch progress for an arbitrary challenge the user isn't currently on. This matters for any feature that wants to know completion status of *every* challenge in a list (see §8, open item).
+
+---
+
+## 3. API Routes (`server/routes/`)
+
+All routes are prefixed `/api`. 🔒 = requires `Authorization: Bearer <jwt>` (`authMiddleware`). 👑 = also requires `role: admin` (`adminMiddleware`).
+
+### `auth.js`
+| Method & path | Auth | Purpose |
+|---|---|---|
+| POST `/auth/register` | — | username≥3, valid email, password must pass `validatePassword` (8+ chars, upper, lower, number, special) |
+| POST `/auth/login` | — | returns `{token, user}` |
+| GET `/auth/me` | 🔒 | current user |
+| PUT `/auth/profile` | 🔒 | update username/email/profilePicture |
+| PUT `/auth/password` | 🔒 | change password, requires current password |
+| GET `/auth/search?q=` | 🔒 | exact-match username lookup (used by group "add member") |
+
+### `challenges.js`
+| Method & path | Auth | Purpose |
+|---|---|---|
+| GET `/challenges/default` | — | all `type:'default'` challenges (public) |
+| POST `/challenges/default` | 🔒👑 | **replaces** the entire default-challenges set |
+| GET `/challenges/user` | 🔒 | caller's own `type:'user'` challenges |
+| POST `/challenges/user` | 🔒 | **replaces** the entire set of the caller's own challenges |
+| GET `/challenges/active` | 🔒 | caller's `ActiveChallenge` pointer (what's tracked on the Today page) |
+| POST `/challenges/active` | 🔒 | set active challenge (upsert). Client also calls `POST /challenges/follow` right after — see §7f |
+| GET `/challenges/follow` | 🔒 | added 2026-07-12 — caller's `Follow` pointer (what shows as "Following" in Discover and who counts as a follower on that challenge's leaderboard) |
+| POST `/challenges/follow` | 🔒 | added 2026-07-12 — set followed challenge (upsert). Called automatically by the Today-page dropdown on every selection, and independently by Discover's Follow button |
+| GET `/challenges/community` | 🔒 | defaults + user challenges for the Discover panel, **excluding ended ones** (added 2026-07-12) — **admins see every user's**, regular users see **only their own** (fixed 2026-07-12, see §7) |
+| GET `/challenges/all` | 🔒 | defaults + user challenges + challenges of groups the caller belongs to — **admins see every user's personal challenges**, regular users see **only their own** (fixed 2026-07-12, see §7); this is what populates the Today-page dropdown |
+| GET `/challenges/history` | 🔒 | added 2026-07-12 — ended challenges with performance stats. Regular users get only their own tracked ones; **admins get every challenge that has ended, system-wide**, including ones nobody ever tracked (`tracked: false`) — see §7c/§7d |
+
+Note the **replace-not-merge** semantics on `POST /challenges/default` and `POST /challenges/user`: the client always sends the full array back, and the server deletes-then-reinserts. Any client that doesn't hold the complete up-to-date array before saving will silently drop challenges.
+
+### `progress.js`
+| Method & path | Auth | Purpose |
+|---|---|---|
+| GET `/progress` | 🔒 | entries for the *active* challenge only |
+| POST `/progress` | 🔒 | overwrite entries for the active challenge |
+
+### `leaderboard.js`
+| Method & path | Auth | Purpose |
+|---|---|---|
+| GET `/leaderboard/:challengeId?source=` | 🔒 (added 2026-07-12, see §8 item 7) | Entries = users who **explicitly follow this challenge** via `Follow` (changed 2026-07-12, see §7f). Computes `percentage = earned / (daysTracked × maxPointsSum)` per follower, sorted descending |
+
+### `groups.js`
+| Method & path | Auth | Purpose |
+|---|---|---|
+| POST `/groups` | 🔒 | create group, caller becomes member + creator |
+| GET `/groups` | 🔒 | groups the caller belongs to |
+| GET `/groups/:id` | 🔒 | detail (member or admin only) |
+| POST `/groups/:id/members` | 🔒 (creator/admin) | add members by id |
+| DELETE `/groups/:id/members/:userId` | 🔒 (creator/admin) | remove member |
+| POST `/groups/:id/challenge` | 🔒 (creator/admin) | create/replace the group's single challenge |
+| GET `/groups/:id/challenge` | 🔒 (member/admin) | fetch group challenge (full Challenge doc) |
+| POST `/groups/:id/messages` | 🔒 (member) | send chat message |
+| GET `/groups/:id/messages` | 🔒 (member) | full message history, no pagination |
+| DELETE `/groups/:id` | 🔒 (creator/admin) | deletes group + its challenge + all messages |
+| GET `/groups/discover/all` | 🔒 | groups the caller is **not** in |
+| POST `/groups/:id/join` | 🔒 | self-join, anyone |
+| POST `/groups/:id/leave` | 🔒 | self-leave |
+
+---
+
+## 4. Auth & Roles
+
+- Single hardcoded admin bootstrap: on every server start, `start()` in `server/index.js` looks for username `naitikmishra`. If found, forces `role: 'admin'`; if not found, creates it with a **freshly random password printed to the console** (or `ADMIN_PASSWORD` env var if set).
+- ✅ **Fixed** (see §8 item 1): the password-print-on-restart gotcha we hit while first logging in is resolved — restarting with an existing admin account now logs "password unchanged" instead of printing a fake new one, and `ADMIN_PASSWORD` (if set) is now applied to an existing account too, not just on first creation.
+- No other role-granting path exists — every other registered user is `role: 'user'` permanently (no promote/demote endpoint).
+- Admin privileges observed: manage default challenges (create/edit/delete, visible to everyone), manage *any* group (add/remove members, edit/delete challenge, delete group) even without being a member, see *all* groups in `/challenges/all` (not just joined ones).
+- Regular users: can create their own personal challenges and groups, join/leave groups freely (open self-join — no invite/approval step), manage only groups they created.
+
+---
+
+## 5. Frontend Structure (`client/src/`)
+
+```
+App.jsx                     — provider nesting + tab switch (today/dashboard/charts/groups/settings)
+contexts/
+  AuthContext.jsx            — user, login/register/logout, checkAuth on mount
+  DataContext.jsx            — defaultsData, userChallengesData, allChallengesData, progressData; loadAll/refreshData
+  ThemeContext.jsx           — 7 color themes (themes.js), applied as CSS custom properties, persisted to localStorage
+components/
+  Auth/AuthOverlay.jsx        — login/register form, full-screen when logged out
+  Layout/Header.jsx           — title + theme picker button
+  Layout/BottomNav.jsx        — 5-tab bottom nav
+  Layout/Toast.jsx            — global toast context, 2s auto-hide
+  Today/TodayPage.jsx         — main screen: challenge selector, date nav, score ring, checklist
+  Today/ChallengeSelector.jsx — the <select> dropdown driving "active challenge"; filters out expired challenges and auto-switches away from one that just expired (see §7b)
+  Today/DateNav.jsx           — prev/next day arrows, "Day N" badge
+  Today/ScoreCard.jsx         — SVG progress ring for the current day
+  Today/CheckList.jsx         — habit checkboxes for the current day
+  Today/DiscoverPanel.jsx     — browse/follow default+user challenges
+  Today/LeaderboardPanel.jsx  — per-challenge leaderboard modal
+  Dashboard/DashboardPage.jsx — "Stats" tab: overall/challenge progress, best/worst habit, per-habit breakdown
+  Charts/ChartsPage.jsx       — Chart.js bar chart (daily/weekly/monthly) + month calendar heatmap
+  Groups/GroupsPage.jsx       — group list, create/join/discover, group detail (chat + challenge + members)
+  Settings/SettingsPage.jsx   — default-challenge admin panel, personal-challenge management, theme picker, sign out
+  Settings/ChallengeWizard.jsx— create/edit form for default or personal challenges
+  Settings/ProfilePage.jsx    — username/email/avatar edit, password change
+utils/
+  api.js                      — all fetch wrappers, 5s timeout via AbortController, JWT attached from localStorage
+  helpers.js                  — date math, challenge merging (getChallenges/getActiveChallenge/getActiveHabits), password validation, getChallengeEnd
+```
+
+### Data flow for "active challenge"
+`DataContext` loads four things in parallel on auth: `defaultsData`, `userChallengesData`, `allChallengesData` (from `/challenges/all`), and `progressData` (for whatever is currently active). `getActiveChallenge()` (helpers.js) picks the active one by checking `allChallengesData.activeChallengeId/activeSource` first, then falls back through defaults → user → **first item in the merged list** if nothing is explicitly set. This fallback is why a brand-new user immediately sees a default challenge as "active" without ever picking one.
+
+Switching challenges (`ChallengeSelector.handleChange`) does an optimistic local update to all three data buckets, then persists via `POST /challenges/active`, then the caller (`TodayPage.handleChallengeChange`) resets `currentDate` to today and reloads `progressData` from the server (since progress is scoped to the active challenge only).
+
+---
+
+## 6. Feature Walkthrough (as verified live)
+
+- **Today tab**: shows the active challenge's habits for the selected date. Only *today* can be checked/unchecked (`TodayPage.handleToggle` blocks other dates with a toast; `CheckList` is also rendered `readonly` for non-today dates). Confirmed live: toggling a habit updates the score ring (0%→25%), persists via `POST /progress`, and immediately reflects in Stats/Charts.
+- **Stats tab (Dashboard)**: pure client-side computation from `progressData` + `activeChallenge`, walks every day from `startDate` to today. No server aggregation involved.
+- **Charts tab**: Chart.js bar chart with daily/weekly/monthly grouping, plus a calendar heatmap (color interpolates green based on day completion %). Falls back to the first available challenge if none is "active" yet.
+- **Groups tab**: Confirmed live — create group (creator auto-joins), self-join via Discover Groups, group detail shows chat + optional single group challenge + member list. Permissions verified correctly gated: a plain member sees no Add/Edit/Delete controls, only Leave; creator/admin see all of them.
+- **Settings tab**: Admin sees an extra "Default Challenges" section (visible to all users, editable only by admin) above the "My Challenges" section every user gets. `ChallengeWizard` is a shared create/edit form parameterized by `source` (`'default'` or `'user'`).
+- **Leaderboard**: per-challenge, aggregates every user who is either following the challenge or has any progress row for it; percentage = earned points / (days tracked × total possible per day). Verified live with one admin entry.
+- **Themes**: 7 presets (sunset/midnight/forest/ocean/rose/lavender/amber), applied instantly via CSS custom properties, no server round-trip.
+
+---
+
+## 7. Visibility Restrictions, Expiry Filtering & Completed-Challenge History (shipped 2026-07-12)
+
+Three related changes landed together, all verified live against the real database using a throwaway `zzqaverify99` test account (registered, exercised, then fully deleted — see §9).
+
+### 7a. Ownership-based visibility (bug fix)
+`GET /challenges/all` and `GET /challenges/community` both used to query `Challenge.find({ type: 'user' })` with **no owner filter**, meaning every regular user could see and select *every other user's* personal challenges — in both the Today-page dropdown and the Discover panel. Fixed in [challenges.js](server/routes/challenges.js): both routes now use `{ type: 'user', owner: userId }` for non-admins, and keep the unrestricted query for admins. Confirmed live: as `zzqaverify99`, the dropdown and Discover panel showed only default challenges (no `bits`/`archi jain`/`anshul` entries); as admin, everyone's personal challenges still show as before.
+
+Group-challenge visibility is untouched — that's still governed by group membership, not this ownership rule.
+
+### 7b. Expiry filtering on the Today-page dropdown
+[ChallengeSelector.jsx](client/src/components/Today/ChallengeSelector.jsx) now filters out any challenge whose last day has passed, using `getChallengeEnd(c)` from [helpers.js](client/src/utils/helpers.js:27) compared against **today normalized to local midnight** (`today <= end`, so a challenge stays selectable through its entire final day and disappears starting the day after). Confirmed live against a real expired default challenge ("7 Day Habit Challenge", ended `2026-07-09`, today `2026-07-12`) — correctly absent from the dropdown while still listed (and editable) in Settings, which was deliberately left unfiltered since users still need to manage/delete old challenges there.
+
+**Auto-switch on expiry**: if the challenge that's currently active (server-side `ActiveChallenge` pointer) has expired, a `useEffect` in `ChallengeSelector` detects the mismatch against the filtered list and automatically switches to the first available valid challenge, persisting via the normal `saveActiveChallenge` call. Confirmed live: force-set a test user's active challenge to an already-expired one directly via the API, reloaded, and watched it auto-correct to the only valid default — verified against the real `ActiveChallenge` record server-side, not just the UI.
+
+**Known gap this surfaced**: Settings' "Delete" button for a personal challenge only operates on whatever is currently the globally *active* challenge (`SettingsPage.handleDeleteUser` checks `activeChallenge._source === 'user'`) — this was already slightly awkward pre-existing behavior, but now that an expired challenge can never be made active again via the dropdown, **there is no UI path left to delete an expired personal challenge**. Not fixed yet — flagging for a follow-up (likely fix: make each challenge card in Settings carry its own delete action instead of relying on global active state).
+
+### 7c. Completed-challenge history ("personal space")
+New `GET /api/challenges/history` (🔒) in [challenges.js](server/routes/challenges.js): for the caller, finds every `Progress` row they have, keeps only the ones whose challenge has ended, and computes `{name, source, days, startDate, endDate, habitsCount, daysTracked, totalEarned, totalPossible, percentage}` per challenge. `totalPossible` deliberately uses the **full challenge duration** (`days × habitPointsSum`), not just days-tracked like `leaderboard.js` does — this endpoint is answering "how much of the whole challenge did you complete," which needs the full-duration denominator to be meaningful; `daysTracked` doesn't change what days you *could* have played.
+
+Rendered in [ProfilePage.jsx](client/src/components/Settings/ProfilePage.jsx) as a new "Completed Challenges" section — count + average performance, then a card per challenge with date range, points, days tracked, and a color-coded percentage badge (green ≥66%, amber ≥33%, red below). This is "personal space" in the sense the user meant it — the same page as their username/email/password, not a new tab.
+
+**Bug caught during verification**: the initial implementation formatted `endDate` with `end.toISOString().slice(0,10)`, which converts to UTC — since this server runs in `Asia/Calcutta` (UTC+5:30), a local end-of-day date rolled back by one day in the response (`2026-07-07` start+3days showed as `2026-07-06`). Fixed by adding a local-date `dateStr()` helper (same pattern the client already uses) instead of relying on UTC conversion. The underlying `today <= end` comparison logic was never affected — it compares `Date` objects directly, not strings — only the *display* string was wrong.
+
+**Verification method**: created a real personal challenge via the UI with a past start date, then used the test account's own JWT (via `fetch` in the browser console) to call `POST /challenges/active` and `POST /progress` directly — bypassing only the just-added client-side dropdown filter, which correctly refuses to let you select an already-expired challenge through the UI. This exercises the exact same server endpoints a real client would have called *before* the challenge expired. Confirmed the `/history` response, then confirmed it rendered correctly in the actual Profile page after a hard reload. All test data (Challenge, Progress, ActiveChallenge, the throwaway User itself) was deleted afterward — see §9.
+
+### 7d. Admin sees every ended challenge, system-wide — tracked or not (final form, iterated twice on 2026-07-12)
+Follow-up ask #1: admin's "Completed Challenges" view in Profile should show **every user's** completed challenges, not just the admin's own — the "super admin" already sees every user's *active* challenges (§7a), so their completion history should be symmetric. First implementation: `Progress.find(isAdmin ? {} : { user: userId })`, i.e. still driven by *who has progress*, just unscoped from `user: userId` for admins.
+
+This surfaced a real gap immediately: asked "where is the Kamini2003 user challenge" after her "My 7-Day Challenge" (ended `2026-07-10`) disappeared from the dropdown (correctly, per §7b) but *also* never showed up in the admin history view — because she never logged any progress on it, so no `Progress` doc ever existed for it to be found by. Follow-up ask #2: show admin **every** ended challenge regardless of whether anyone tracked it, not only the ones with a completion record.
+
+Final implementation in `GET /challenges/history` ([challenges.js](server/routes/challenges.js)): the admin branch now starts from `Challenge.find({})` (every default/user/group challenge), filters to ones whose end date has passed, and *then* looks up `Progress.find({ challengeId })` per challenge:
+- Zero progress docs → one result row, `tracked: false`, `username: null`, 0/0 stats.
+- One or more progress docs → one result row **per user** who has any, `tracked: true`, with that user's stats (a default/group challenge with several followers who all tracked it now legitimately produces multiple rows for the same `challengeId`, one per follower — hence the list key is `challengeId + username`).
+
+Regular users' branch is untouched: still their own `Progress` rows only, always `tracked: true` (a user only ever sees challenges they engaged with — there's nothing to show them for one they didn't).
+
+`ProfilePage.jsx`: admin heading is "Ended Challenges (All Users)" (not "Completed" — it's now an inventory of *endings*, not just successes). The summary line separates the two: `"{total} ended challenges across all users · avg {pct}% on the {N} completed · {M} never attempted"`. Untracked cards show "· not attempted by anyone" in place of "· by {username}", omit the pts/days-tracked line (nothing to report), and get a neutral gray `—` badge instead of a colored percentage — deliberately not showing "0%" in red, since "nobody tried" and "tried and scored zero" are different things worth distinguishing at a glance.
+
+**Verified against real, non-test data both times**: first pass confirmed via `anshul`'s completed "7 Day Habit Challenge" (`70/350 pts`, 20%, red badge). Second pass confirmed `Kamini2003`'s "My 7-Day Challenge" (`2026-07-04 → 2026-07-10`) now appears with `tracked: false` and the gray `—` badge, sitting alongside anshul's tracked entry in the same list — screenshot-verified in the running app, not just the API response.
+
+### 7e. Creator attribution (extended further, same day)
+Follow-up ask #3: also show who *created* each ended challenge, not just who (if anyone) completed it — distinct pieces of info, since for defaults and group challenges the creator and the tracker are usually different people.
+
+Added a `getCreatorName(challenge)` helper next to the existing `getUsername` cache in the same `/history` route: `type === 'default'` → `'Admin'` (only admins can create default challenges, per `adminMiddleware` on `POST /challenges/default`); otherwise resolves `challenge.owner` to a username (covers both `'user'` and `'group'` — group challenges are owned by whichever creator/admin set them up, see `groups.js`). Included as `creatorName` on every result row, both admin and regular-user branches.
+
+`ProfilePage.jsx` cards now read `{startDate} → {endDate} · created by {creatorName}` before the pts/days-tracked segment. Verified live: Kamini2003's untracked challenge shows "created by Kamini2003" (she made it for herself, never ran it), and the default "7 Day Habit Challenge" shows "created by Admin" while still crediting "by anshul" for who actually completed it — the two labels correctly stay independent.
+
+### 7f. Discover shows only active challenges; Follow model with dropdown auto-follow (2026-07-12, iterated three times)
+This went through three shapes before landing. Worth recording the history since the final design is a synthesis, not the first draft.
+
+**Attempt 1** — full decoupling. Introduced a `Follow` model separate from `ActiveChallenge`, changed so *only* Discover's explicit Follow button could set it; switching the Today-page dropdown never touched it. Verified live, then explicitly reverted ("remove the last latest changes") — turned out to be more decoupling than wanted.
+
+**Attempt 2** — full revert. Deleted `Follow.js`, reverted `/community` and `leaderboard.js` back to pure `ActiveChallenge`-based following, undoing the Discover expiry filter too. Then corrected: the user only wanted the Discover expiry filter and the `Follow`-based leaderboard-restriction kept — they explicitly wanted the *auto-follow-via-dropdown* behavior preserved, not removed.
+
+**Final shape** — both things true at once:
+- **Discover filtering**: `GET /challenges/community` filters `defaults`/`userChallenges` through `today <= getChallengeEndDate(c)` before responding. Ended challenges belong in "Ended Challenges" (§7d), not Discover.
+- **`Follow` model exists** (§2), separate collection from `ActiveChallenge`, so leaderboards (`leaderboard.js`) can be computed from explicit followers only, and Discover's badge (`/community`'s `following` flag) reads from `Follow`, not `ActiveChallenge`.
+- **But the Today-page dropdown auto-follows.** `ChallengeSelector.jsx`'s `selectChallenge()` now calls `saveActiveChallenge(id, source)` **and then** `saveFollowedChallenge(id, source)` on every dropdown change — so picking a challenge to track today also makes it your followed challenge, exactly like the old single-field behavior. Discover's own Follow button still calls `saveFollowedChallenge` independently, so you *can* follow a different challenge than the one you're actively tracking, but by default they move together unless you deliberately override it in Discover.
+
+Net effect: the two are structurally separate (`Follow` vs `ActiveChallenge`, two collections, two endpoints), but behaviorally coupled by default via the auto-follow call — closing the gap between "clean architecture" and "the app should feel exactly like it did before, just with better leaderboard semantics underneath."
+
+Discover's "You're following: {name}" card (with a direct "View Leaderboard" button) is still in `DiscoverPanel.jsx`, sourced from whichever challenge has `following: true` in the `/community` response.
+
+**Since re-verified live** (2026-07-13, see §7g) — the restoration itself is confirmed working correctly.
+
+### 7g. Expired-challenge auto-switch centralized in DataContext, not just the Today page (2026-07-13)
+Follow-up ask: make sure an ended/completed challenge is genuinely invisible everywhere except "Ended Challenges" — not just absent from the Today-page dropdown.
+
+**Real gap found**: the "switch away from an expired active challenge" logic lived only inside `ChallengeSelector.jsx` (a component that only mounts on the Today page). `DataContext`'s `activeChallenge` — consumed by Stats, Charts, the Leaderboard trigger, and Today itself — never filtered by expiry on its own. So if a user's server-side `ActiveChallenge` pointer referenced an ended challenge and they opened Stats or Charts *without visiting Today first*, `ChallengeSelector` would never mount, its auto-switch effect would never run, and the expired challenge's data would display as if still active.
+
+Fixed by moving the auto-switch out of `ChallengeSelector.jsx` and into `DataContext.jsx` itself, right after the `activeChallenge` derivation: a `useEffect` checks `getChallengeEnd(activeChallenge)` against today (once `loaded`); if it's ended, it finds the first non-expired challenge in the merged list and calls `saveActiveChallenge` **and** `saveFollowedChallenge` (matching the dropdown's own auto-follow-on-select behavior, §7f) before calling `refreshData()`. `ChallengeSelector.jsx` no longer has its own copy of this logic — it just renders whatever `DataContext` has already settled on.
+
+This matters beyond cosmetics: `GET /api/progress` reads the server-side `ActiveChallenge` pointer directly, not whatever the client happens to be displaying. A client-only filter (skip rendering the expired one, but leave the server pointer stale) would have shown the *newly selected* challenge's name and habit list correctly, while its checkboxes silently reflected the *old expired* challenge's progress entries underneath — a real correctness bug, not just a display nit. Centralizing the fix in `DataContext` and having it call `refreshData()` avoids that: progress is reloaded fresh against the corrected challenge every time.
+
+**Scope decision — what still legitimately shows an ended challenge**: Settings' "Default Challenges" / "My Challenges" management lists, and a group's challenge card in `GroupsPage.jsx`, still display ended challenges regardless of expiry, and this is intentional, not a gap. Those are CRUD/management surfaces (edit, delete) — hiding an ended challenge there would make it permanently un-deletable, which is worse than leaving it visible for management purposes. "Nowhere to be seen except Ended Challenges" is being read as applying to *tracking/selection* surfaces (dropdown, Stats, Charts, Discover, Leaderboard), not admin/owner management views.
+
+**Verified live**: forced the server-side `ActiveChallenge` to an already-ended default challenge via direct API call, then did a hard reload. Before I could even inspect the intermediate state, the dropdown had already re-settled on a valid challenge — confirmed via direct `fetch()` (not just DOM) that both `ActiveChallenge` and `Follow` server-side had been corrected. Then checked Stats directly (not just Today) and confirmed the habit breakdown matched the corrected challenge exactly, with no stale/mismatched progress. Confirmed the forced-expired challenge still appeared correctly in `/challenges/history` (Ended Challenges) throughout.
+
+---
+
+## 8. Known Bugs / Inconsistencies Found During Testing
+
+All items below except #6 were fixed and re-verified live in-browser on 2026-07-12 (see §8a for how each was verified).
+
+1. ✅ **FIXED — Admin password bootstrap misled on restart.** `naitikmishra`'s password used to only be set on first creation; every later restart printed a *new* random password that was never actually applied if the account already existed. Fixed in `server/index.js` and `server/seed.js`: the "new random password" branch now only runs when actually creating the account; if the account exists and `ADMIN_PASSWORD` is set, that value is now applied to it (previously ignored for existing accounts); if it exists and no `ADMIN_PASSWORD` is set, the log now honestly says "password unchanged" instead of printing a fake one.
+2. ✅ **FIXED — `createdBy` not populated on group create/join/leave.** [groups.js](server/routes/groups.js) — `POST /groups`, `POST /groups/:id/members`, `DELETE /groups/:id/members/:userId`, `POST /groups/:id/join`, `POST /groups/:id/leave` now all `.populate('createdBy', 'username')` in addition to `members`, matching what `GET /groups` already did. "Created by Unknown" no longer appears after create/join.
+3. ✅ **FIXED — Group challenge response shape mismatch, plus a deeper bug found while fixing it.** `POST /groups/:id/challenge` used to return `{challengeId, name, habitsCount}` (no `days`), while `GET /groups/:id/challenge` returned the full Challenge doc (`habits[]`, `days`, no `habitsCount`) — one field was always blank in the UI depending on which endpoint last populated state. Fixed by having the POST response spread the full `challengeData` object (same shape as the DB doc) plus a `habitsCount` convenience field, and by making the client read `groupChallenge.habitsCount ?? groupChallenge.habits?.length ?? 0` so it tolerates either shape.
+   - **Deeper bug found during the fix**: on *edit*, the route always minted a brand-new random `challengeId` and wrote it onto the existing Challenge doc via `updateOne({id: group.challengeId}, challengeData)` — but `group.challengeId` (the pointer) was never updated to match. After any edit, the group's stored pointer became stale and `GET /groups/:id/challenge` would silently stop finding the challenge. Fixed by reusing `group.challengeId` as the id on edit (`const challengeId = group.challengeId || crypto.randomUUID()`), only minting a new one on first creation.
+   - **Second-order bug this caused, also fixed**: because the POST response didn't include a `habits` array, editing a challenge a *second* time in the same session (without a reload in between) would show blank habit-name fields in the edit form (`defaultValue={groupChallenge?.habits?.[i-1]?.name || ''}`) and silently wipe the habit names on save if submitted. Fixed as a side effect of the full-shape POST response above — confirmed live: edited a challenge, immediately reopened the edit form with no reload, habit names were correctly pre-filled.
+4. ✅ **FIXED — Joining/leaving a group (or creating a group challenge, or deleting a group) didn't refresh the Today-page dropdown in-session.** `GroupsPage`'s `handleJoin`, `handleLeave`, `handleCreateChallenge`, and `handleDeleteGroup` now all call `DataContext.refreshData()` after a successful server response, so the affected challenge appears/disappears from `ChallengeSelector` immediately instead of requiring a full page reload.
+5. ✅ **FIXED — Active-tab state didn't reset on login/logout.** Added a `useEffect` in `App.jsx` that resets `activeTab` to `'today'` whenever `isAuthenticated` becomes `false`, so the next login always starts on the Today tab regardless of which tab was open before signing out.
+6. **NOT FIXED — Profile pictures are stored as base64 data URLs directly on the User doc**, with no size limit beyond the global `express.json({ limit: '5mb' })` — a big-enough image upload will bloat the Mongo document and the `/auth/me` payload on every page load. No compression/resizing anywhere in `ProfilePage.jsx`. Left as-is: fixing this properly means adding image resizing/compression or moving to object storage, which is a larger feature than a bug fix — flagging for a future decision rather than doing it opportunistically.
+7. ✅ **FIXED — `GET /leaderboard/:challengeId` had no `authMiddleware`** despite every other data route requiring a JWT — anyone who guessed/enumerated a challenge id could see usernames, avatars, and point totals for its followers without logging in. Added `authMiddleware` to the route in `server/routes/leaderboard.js`; also had to fix the client (`LeaderboardPanel.jsx`) which was calling it with no `Authorization` header at all — now sends `authHeaders()`. Verified live: unauthenticated `fetch('/api/leaderboard/...')` now returns `401`; logged-in leaderboard view still works.
+
+### 8a. Verification method
+Every fix above was verified by restarting the local dev server and re-driving the actual UI (not just reading the diff): re-created a group and confirmed "Created by X" appeared instantly, created and then edited a group challenge twice in the same session to confirm habit names survived, joined a group and confirmed its challenge appeared in the dropdown without a reload, registered/logged out/logged back in to confirm the tab reset, and hit the leaderboard endpoint both authenticated and raw via `fetch()` to confirm the 401. Test group/challenge created purely for this verification ("Bug Fix Test Group") was deleted afterward; "Fitness Squad" from the original walkthrough was left in place.
+
+---
+
+## 9. Environment / Running Locally
+
+- `.claude/launch.json` configures `npm run dev` (root) as the dev-server preset, which runs `concurrently` for both `dev:server` (Express, forced to port 3000, see §1) and `dev:client` (Vite, port 5173).
+- **`.env` now exists in the repo root** (gitignored, correctly not tracked) with `MONGODB_URI`, `ADMIN_PASSWORD`, `JWT_SECRET` set to real values. The app did **not** originally load `.env` files — added the `dotenv` package (`server/index.js`/`server/seed.js` now start with `require('dotenv').config()`, placed before every other `require` since `JWT_SECRET` is read at module-load time in `middleware/auth.js` and `routes/auth.js`, not lazily). Production (Render) is unaffected — it sets these as real environment variables directly, no `.env` file involved there.
+- **The local dev server now connects to the real production MongoDB database**, not the throwaway local `mongod` instance used earlier in this doc's history. Confirmed live: on connecting, the server ran its one-time legacy "DataStore" migration (meaning this database predates the current Challenge-collection schema and had never been migrated before), and logging in as admin surfaced real user challenges (`bits`, `Kamini2003`, `archi jain`, `anshul`, etc.) — this is genuinely live data, not a fixture.
+- ⚠️ **Implication for future testing in this repo**: the throwaway `testuser1` account, "Fitness Squad" group, and "Squad Challenge" created earlier in this session live in the *old local* MongoDB instance and do **not** exist in the real database now connected. Do not casually create test groups/challenges/accounts against this database the way we did against the local one earlier — it has real users now. If more bug-fix verification is needed, prefer creating a throwaway account and cleaning it up immediately, the same discipline used in §8a.
+- The admin password is whatever is set in the local `.env`'s `ADMIN_PASSWORD` — not printed here since `.env` is a secret file the user controls directly.
+- **Creating any account or data in the real database now requires explicit user permission** — the harness's auto-mode classifier blocked an unattended attempt to register a test account, correctly enforcing the caution above. The user approved a one-off throwaway account (`zzqaverify99`) for §7's verification; it and everything it touched (its Challenge, Progress, and ActiveChallenge rows, and the User doc itself) were deleted immediately after via a one-off script (`server/_cleanup_qa_test.js`, not committed — created and removed in the same session). Don't assume this permission carries forward to future sessions; ask again.

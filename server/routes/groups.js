@@ -23,6 +23,7 @@ router.post('/', authMiddleware, async (req, res) => {
       await group.save();
     }
     await group.populate('members', 'username profilePicture');
+    await group.populate('createdBy', 'username');
     res.json({ ok: true, data: group });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -81,6 +82,7 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
     }
     await group.save();
     await group.populate('members', 'username profilePicture');
+    await group.populate('createdBy', 'username');
     res.json({ ok: true, data: group });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -97,6 +99,7 @@ router.delete('/:id/members/:userId', authMiddleware, async (req, res) => {
     group.members = group.members.filter(m => m.toString() !== req.params.userId);
     await group.save();
     await group.populate('members', 'username profilePicture');
+    await group.populate('createdBy', 'username');
     res.json({ ok: true, data: group });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -117,8 +120,9 @@ router.post('/:id/challenge', authMiddleware, async (req, res) => {
 
     const nextHabitId = habits.length + 1;
     const crypto = require('crypto');
-    const challengeId = crypto.randomUUID();
-    const colorIdx = habits.length;
+    // Reuse the existing challenge id on edit so group.challengeId stays valid;
+    // only mint a new one when creating for the first time.
+    const challengeId = group.challengeId || crypto.randomUUID();
     const finalHabits = habits.map((h, i) => ({
       id: i + 1,
       name: h.name,
@@ -145,7 +149,7 @@ router.post('/:id/challenge', authMiddleware, async (req, res) => {
       await group.save();
     }
 
-    res.json({ ok: true, data: { challengeId, name: name.trim(), habitsCount: finalHabits.length } });
+    res.json({ ok: true, data: { ...challengeData, habitsCount: finalHabits.length } });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
@@ -247,6 +251,7 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
     group.members.push(userId);
     await group.save();
     await group.populate('members', 'username profilePicture');
+    await group.populate('createdBy', 'username');
     res.json({ ok: true, data: group });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -261,6 +266,7 @@ router.post('/:id/leave', authMiddleware, async (req, res) => {
     group.members = group.members.filter(m => m.toString() !== req.user.id);
     await group.save();
     await group.populate('members', 'username profilePicture');
+    await group.populate('createdBy', 'username');
     res.json({ ok: true, data: group });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

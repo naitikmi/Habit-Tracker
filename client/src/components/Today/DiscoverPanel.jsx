@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { tryFetchAPI, authHeaders, saveActiveChallenge } from '../../utils/api';
+import { tryFetchAPI, authHeaders, saveFollowedChallenge } from '../../utils/api';
 import { useToast } from '../Layout/Toast';
+import LeaderboardPanel from './LeaderboardPanel';
 
 export default function DiscoverPanel({ onClose, onFollow }) {
   const { showToast } = useToast();
   const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewLeaderboard, setViewLeaderboard] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -16,13 +18,15 @@ export default function DiscoverPanel({ onClose, onFollow }) {
   }, []);
 
   const handleFollow = async (ch) => {
-    await saveActiveChallenge(ch.id, ch.source);
+    await saveFollowedChallenge(ch.id, ch.source);
     showToast('Following: ' + ch.name);
     setChallenges(prev => prev.map(c =>
       c.id === ch.id && c.source === ch.source ? { ...c, following: true } : { ...c, following: false }
     ));
     if (onFollow) onFollow(ch);
   };
+
+  const followed = challenges.find(c => c.following);
 
   return (
     <>
@@ -33,6 +37,21 @@ export default function DiscoverPanel({ onClose, onFollow }) {
           <button className="lb-close" onClick={onClose}>✕</button>
         </div>
         <div className="lb-meta">Follow a challenge to track it and appear on its leaderboard</div>
+
+        {!loading && followed && (
+          <div className="discover-card following" style={{ marginBottom: '10px' }}>
+            <div className="discover-info">
+              <div className="discover-name">You're following: {followed.name}</div>
+              <div className="discover-meta">{followed.days} days &middot; {followed.habitsCount} habits</div>
+            </div>
+            <button
+              className="discover-follow-btn"
+              onClick={() => setViewLeaderboard(followed)}
+            >
+              View Leaderboard
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="lb-loading">Loading...</div>
@@ -70,6 +89,14 @@ export default function DiscoverPanel({ onClose, onFollow }) {
           </div>
         )}
       </div>
+      {viewLeaderboard && (
+        <LeaderboardPanel
+          challengeId={viewLeaderboard.id}
+          challengeName={viewLeaderboard.name}
+          challengeSource={viewLeaderboard.source}
+          onClose={() => setViewLeaderboard(null)}
+        />
+      )}
     </>
   );
 }

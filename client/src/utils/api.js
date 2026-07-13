@@ -107,6 +107,26 @@ export async function saveActiveChallenge(challengeId, source) {
   });
 }
 
+export async function loadChallengeHistory() {
+  const r = await tryFetchAPI('/api/challenges/history', { headers: authHeaders() });
+  if (r && r.ok && r.data) return r.data;
+  return [];
+}
+
+export async function loadFollowedChallenge() {
+  const r = await tryFetchAPI('/api/challenges/follow', { headers: authHeaders() });
+  if (r && r.ok && r.data) return r.data;
+  return null;
+}
+
+export async function saveFollowedChallenge(challengeId, source) {
+  await tryFetchAPI('/api/challenges/follow', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ challengeId, source })
+  });
+}
+
 export async function loadProgress() {
   const r = await tryFetchAPI('/api/progress', { headers: authHeaders() });
   if (r && r.ok && r.data) return r.data;

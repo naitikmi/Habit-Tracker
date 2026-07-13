@@ -1,11 +1,18 @@
 import React from 'react';
-import { getChallenges } from '../../utils/helpers';
-import { saveActiveChallenge } from '../../utils/api';
+import { getChallenges, getChallengeEnd } from '../../utils/helpers';
+import { saveActiveChallenge, saveFollowedChallenge } from '../../utils/api';
 import { useData } from '../../contexts/DataContext';
 
 export default function ChallengeSelector({ onChange }) {
   const { defaultsData, setDefaultsData, userChallengesData, setUserChallengesData, allChallengesData, setAllChallengesData } = useData();
-  const challenges = getChallenges(defaultsData, userChallengesData, allChallengesData);
+  const allChallenges = getChallenges(defaultsData, userChallengesData, allChallengesData);
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const challenges = allChallenges.filter(c => {
+    const end = getChallengeEnd(c);
+    return !end || today <= end;
+  });
 
   let activeId = null;
   let activeSource = null;
@@ -21,9 +28,7 @@ export default function ChallengeSelector({ onChange }) {
   }
   const selectValue = activeSource && activeId ? activeSource + ':' + activeId : '';
 
-  const handleChange = async (e) => {
-    const [source, id] = e.target.value.split(':');
-
+  const selectChallenge = async (source, id) => {
     // Update all sources to track active challenge
     if (allChallengesData) {
       const updated = { ...allChallengesData, activeChallengeId: id, activeSource: source };
@@ -39,8 +44,22 @@ export default function ChallengeSelector({ onChange }) {
       if (defaultsData) setDefaultsData({ ...defaultsData, activeChallengeId: null });
     }
     await saveActiveChallenge(id, source);
+    // Selecting a challenge here also follows it, so it shows as "Following" in
+    // Discover and appears on its leaderboard — matches the old behavior where
+    // active and followed were the same thing. Discover's own Follow button can
+    // still follow a different challenge afterward without changing what's active.
+    await saveFollowedChallenge(id, source);
     if (onChange) onChange();
   };
+
+  const handleChange = (e) => {
+    const [source, id] = e.target.value.split(':');
+    selectChallenge(source, id);
+  };
+
+  // Auto-switching away from an expired active challenge is handled centrally in
+  // DataContext (applies on every page, not just here) — by the time this renders,
+  // selectValue should already point at a valid, non-expired challenge.
 
   if (!challenges.length) return null;
 
