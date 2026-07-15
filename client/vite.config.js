@@ -33,6 +33,14 @@ export default defineConfig({
     })
   ],
   server: {
+    port: 5183,
+    strictPort: false,
+    proxy: {
+      '/api': 'http://localhost:3000'
+    }
+  },
+  preview: {
+    port: 5183,
     proxy: {
       '/api': 'http://localhost:3000'
     }

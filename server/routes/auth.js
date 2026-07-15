@@ -39,7 +39,7 @@ router.post('/register', async (req, res) => {
     if (existingEmail) return res.json({ ok: false, error: 'Email already in use' });
     const user = await User.create({ username, email, password });
     const token = jwt.sign({ id: user._id, username, role: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ ok: true, token, user: { username, email: user.email, role: 'user', profilePicture: '' } });
+    res.json({ ok: true, token, user: { _id: user._id, username, email: user.email, role: 'user', profilePicture: '' } });
   } catch (e) {
     if (e.code === 11000) return res.json({ ok: false, error: 'Username or email already taken' });
     res.status(500).json({ ok: false, error: e.message });
@@ -54,7 +54,7 @@ router.post('/login', async (req, res) => {
     const match = await user.comparePassword(password);
     if (!match) return res.json({ ok: false, error: 'Invalid username or password' });
     const token = jwt.sign({ id: user._id, username, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ ok: true, token, user: { username, email: user.email, role: user.role, profilePicture: user.profilePicture || '' } });
+    res.json({ ok: true, token, user: { _id: user._id, username, email: user.email, role: user.role, profilePicture: user.profilePicture || '' } });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
@@ -63,7 +63,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   const user = await User.findById(req.user.id);
   if (!user) return res.json({ ok: false, error: 'User not found' });
-  res.json({ ok: true, user: { username: user.username, email: user.email, role: user.role, profilePicture: user.profilePicture || '' } });
+  res.json({ ok: true, user: { _id: user._id, username: user.username, email: user.email, role: user.role, profilePicture: user.profilePicture || '' } });
 });
 
 // Update profile (username, email, profilePicture)
@@ -96,7 +96,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
     }
 
     await user.save();
-    res.json({ ok: true, user: { username: user.username, email: user.email, role: user.role, profilePicture: user.profilePicture || '' } });
+    res.json({ ok: true, user: { _id: user._id, username: user.username, email: user.email, role: user.role, profilePicture: user.profilePicture || '' } });
   } catch (e) {
     if (e.code === 11000) return res.json({ ok: false, error: 'Username or email already taken' });
     res.status(500).json({ ok: false, error: e.message });

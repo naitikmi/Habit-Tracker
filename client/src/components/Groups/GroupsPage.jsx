@@ -60,15 +60,15 @@ export default function GroupsPage() {
     e.preventDefault();
     const form = e.target;
     const name = form.name.value.trim();
-    if (!name) { showToast('Enter a group name'); return; }
+    if (!name) { showToast('Enter a tribe name'); return; }
     setCreating(true);
     const g = await createGroup(name, []);
     if (g) {
       setGroups(prev => [g, ...prev]);
       setShowCreate(false);
-      showToast('Group created!');
+      showToast('Tribe created!');
     } else {
-      showToast('Failed to create group');
+      showToast('Failed to create tribe');
     }
     setCreating(false);
   };
@@ -106,7 +106,7 @@ export default function GroupsPage() {
     if (updated) {
       setGroups(prev => [updated, ...prev]);
       setDiscoverGroups(prev => prev.filter(g => g._id !== groupId));
-      showToast('Joined group!');
+      showToast('Joined tribe!');
       refreshData();
     }
   };
@@ -117,18 +117,18 @@ export default function GroupsPage() {
       setGroups(prev => prev.filter(g => g._id !== groupId));
       setDiscoverGroups(prev => [...prev, updated]);
       setSelectedGroup(null);
-      showToast('Left group');
+      showToast('Left tribe');
       refreshData();
     }
   };
 
   const handleDeleteGroup = async () => {
-    if (!confirm('Delete this group and its challenge?')) return;
+    if (!confirm('Delete this tribe and its challenge?')) return;
     const ok = await deleteGroup(selectedGroup._id);
     if (ok) {
       setGroups(prev => prev.filter(g => g._id !== selectedGroup._id));
       setSelectedGroup(null);
-      showToast('Group deleted');
+      showToast('Tribe deleted');
       refreshData();
     }
   };
@@ -169,9 +169,9 @@ export default function GroupsPage() {
         <div className="gp-back-bar">
           <button className="gp-back" onClick={() => setSelectedGroup(null)}>&larr; Back</button>
           <h3>{selectedGroup.name}</h3>
-          <button className="gp-leave-btn" onClick={() => handleLeave(selectedGroup._id)} title="Leave group">Leave</button>
+          <button className="gp-leave-btn" onClick={() => handleLeave(selectedGroup._id)} title="Leave tribe">Leave</button>
           {(isCreator || isAdmin) && (
-            <button className="gp-del" onClick={handleDeleteGroup} title="Delete group">&times;</button>
+            <button className="gp-del" onClick={handleDeleteGroup} title="Delete tribe">&times;</button>
           )}
         </div>
 
@@ -217,7 +217,7 @@ export default function GroupsPage() {
           ) : (
             (isCreator || isAdmin) && (
               <button className="gp-create-challenge-btn" onClick={() => setShowChallengeForm(true)}>
-                + Create Group Challenge
+                + Create Tribe Challenge
               </button>
             )
           )}
@@ -261,13 +261,13 @@ export default function GroupsPage() {
   return (
     <div className="groups-page">
       <div className="gp-header">
-        <h2>Groups</h2>
-        <button className="gp-create-btn" onClick={() => setShowCreate(true)}>+ New Group</button>
+        <h2>Habit Tribe</h2>
+        <button className="gp-create-btn" onClick={() => setShowCreate(true)}>+ New Tribe</button>
       </div>
 
       {showCreate && (
         <form className="gp-create-form" onSubmit={handleCreateGroup}>
-          <input name="name" placeholder="Group name" required />
+          <input name="name" placeholder="Tribe name" required />
           <button disabled={creating}>{creating ? 'Creating...' : 'Create'}</button>
           <button type="button" onClick={() => setShowCreate(false)}>Cancel</button>
         </form>
@@ -275,8 +275,8 @@ export default function GroupsPage() {
 
       {groups.length === 0 ? (
         <div className="empty-state">
-          <p>No groups yet</p>
-          <p style={{ fontSize: '12px', color: 'var(--text2)' }}>Create a group or join one below</p>
+          <p>No tribes yet</p>
+          <p style={{ fontSize: '12px', color: 'var(--text2)' }}>Create a tribe or join one below</p>
         </div>
       ) : (
         <div className="gp-list">
@@ -296,7 +296,7 @@ export default function GroupsPage() {
 
       {discoverGroups.length > 0 && (
         <>
-          <h3 className="gp-section-title">Discover Groups</h3>
+          <h3 className="gp-section-title">Discover Tribes</h3>
           <div className="gp-list">
             {discoverGroups.map(g => (
               <div key={g._id} className="gp-card gp-card-discover">

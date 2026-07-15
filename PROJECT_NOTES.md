@@ -2,7 +2,7 @@
 
 Living documentation of the codebase, generated from a full source read-through plus a hands-on walkthrough of the running app as both an **admin** account (`naitikmishra`) and a fresh **regular user** account (`testuser1`). Update this file as the app evolves — it's meant to be the single place that explains how everything fits together and what's known to be broken.
 
-Last verified: 2026-07-15 (bug fixes applied and re-verified live, see §8; local dev now connects to the real production database via `.env` + `dotenv`, see §9; ownership-based visibility + expiry filtering + admin's full ended-challenges inventory + Follow model with dropdown auto-follow + centralized expiry auto-switch shipped, see §7; converted to an installable PWA with offline app-shell support, see §10).
+Last verified: 2026-07-15 (bug fixes applied and re-verified live, see §8; local dev now connects to the real production database via `.env` + `dotenv`, see §9; ownership-based visibility + expiry filtering + admin's full ended-challenges inventory + Follow model with dropdown auto-follow + centralized expiry auto-switch shipped, see §7; converted to an installable PWA with offline app-shell support, see §10; fixed a real bug where group owners could never manage their own group, and renamed Groups → Habit Tribe, see §11).
 
 ---
 
@@ -299,3 +299,28 @@ Built with `npm run build` inside `client/`, then verified against the **real pr
 - No custom "Add to Home Screen" install-prompt UI (capturing `beforeinstallprompt` and showing an in-app "Install" button) — browsers show their own native install affordance (e.g. Chrome's address-bar icon) based on the manifest + service worker being valid, which is sufficient for installability but not as discoverable as an explicit in-app prompt. Worth adding if install rates matter.
 - No background sync / push notifications — out of scope for "make it a PWA," which was read as "installable + works offline for the shell," not "add native-app-only capabilities."
 - Have not tested on an actual iOS or Android device — verified via desktop Chromium's mobile viewport emulation and direct API/cache inspection, which covers the mechanics (manifest validity, SW lifecycle, cache contents) but not real-device install/home-screen behavior.
+
+---
+
+## 11. Group ownership bug fix + rename to "Habit Tribe" (2026-07-15)
+
+### 11a. Real bug found: group owners could never manage their own group
+Reported as "I am not able to create challenge [in my group]." Root cause: **none of the auth endpoints ever returned the user's `_id`** — `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, and `PUT /auth/profile` all built their `user` response object from scratch (`{ username, email, role, profilePicture }`), omitting `_id` entirely, in all four places.
+
+`GroupsPage.jsx`'s `isCreator` check is `String(selectedGroup.createdBy?._id || selectedGroup.createdBy) === String(user._id)`. With `user._id` always `undefined`, this was **always false** for every user, in every session, since the app was built — the only reason group management ever worked at all was `isAdmin` (`user?.role === 'admin'`) short-circuiting the same `isCreator || isAdmin` checks. Any regular user who created a group could see it, chat in it, and had the "Leave" button — but never "Delete group," "+ Add" (member), remove-member, or "+ Create Group Challenge", regardless of being its actual creator. This affected real production users: confirmed live that the group "Challenge creation discussion" is owned by `anshul` (not an admin), who would have hit exactly this wall.
+
+Fixed by adding `_id: user._id` to the response object in all four `server/routes/auth.js` endpoints. Verified live: logged in fresh, confirmed `_id` now present in the raw login response (previously absent), confirmed no regressions in the rest of the auth/groups flow.
+
+**Not verified as `anshul` directly** — no credentials for that real account, and resetting a real user's password to test would be more invasive than the bug itself. Confidence comes from the root-cause fix being unambiguous (the exact field the frontend reads was never sent, now it is) plus a clean, passing re-test of the surrounding flow as admin.
+
+### 11b. Related gap closed: group challenge details had no membership check
+While auditing the same code path, found `GET /groups/:id/challenge` — unlike `GET /groups/:id`, which correctly checks `isMember || isAdmin` — had **no visibility restriction at all**, just `authMiddleware`. Any authenticated user who knew or guessed a group's Mongo `_id` could fetch its challenge's name, habits, and duration without being a member. Fixed by adding the same membership check `GET /groups/:id` already uses. This closes the loop on "only members of that group should see that challenge" — the Today-page dropdown (`/challenges/all`) and Discover (`/challenges/community`, which never includes `type:'group'` at all) were already correctly scoped; this endpoint was the one gap.
+
+Clarified with the user that "the owner can create/edit the challenge only after the discussions" was descriptive of the expected workflow, not a literal feature to build (no chat-activity gate implemented) — it was really just restating the ownership + visibility model above, which the two fixes here now make actually work.
+
+### 11c. Rename: Groups → Habit Tribe
+User-facing copy only — internal identifiers (`GroupsPage`, `.groups-page`, `loadGroups()`, the `'groups'` tab key, the `Group`/`GroupMessage` Mongoose models, etc.) are untouched, since renaming those is pure internal churn with no user-visible benefit and only adds risk.
+
+Changed in `GroupsPage.jsx`: page heading ("Habit Tribe"), "+ New Tribe" / "+ Create Tribe Challenge" buttons, "Tribe name" placeholder, empty-state copy ("No tribes yet" / "Create a tribe or join one below"), "Discover Tribes" section title, all toast messages (created/deleted/joined/left), the delete confirmation dialog, and the Leave/Delete button tooltips.
+
+**Bottom-nav label is "Tribe", not "Habit Tribe"** — deliberately shorter than the page heading. Tried the full "Habit Tribe" first as literally requested; at both desktop and mobile (375px) width it wrapped to two lines inside the nav pill, and at mobile width specifically this pushed the "Settings" tab almost entirely off the right edge of the screen — confirmed via screenshot, not just the accessibility tree (which still reported it as present despite being visually unusable). Shortened to "Tribe" in the nav only, matching the single-word style of the other four tabs (Today/Stats/Charts/Settings); the full "Habit Tribe" branding is still used everywhere there's actually room for it (the page's own `<h2>` heading). Re-verified at 375px after the change — all five tabs fit on one line again.

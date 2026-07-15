@@ -155,11 +155,13 @@ router.post('/:id/challenge', authMiddleware, async (req, res) => {
   }
 });
 
-// Get group challenge
+// Get group challenge (members and admin only — matches GET /:id's visibility rule)
 router.get('/:id/challenge', authMiddleware, async (req, res) => {
   try {
     const group = await Group.findById(req.params.id).lean();
     if (!group) return res.json({ ok: false, error: 'Group not found' });
+    const isMember = group.members.some(m => m.toString() === req.user.id);
+    if (!isMember && req.user.role !== 'admin') return res.json({ ok: false, error: 'Not a member' });
     if (!group.challengeId) return res.json({ ok: true, data: null });
     const challenge = await Challenge.findOne({ id: group.challengeId }).lean();
     res.json({ ok: true, data: challenge || null });
