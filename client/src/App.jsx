@@ -11,6 +11,7 @@ import DashboardPage from './components/Dashboard/DashboardPage';
 import ChartsPage from './components/Charts/ChartsPage';
 import SettingsPage from './components/Settings/SettingsPage';
 import GroupsPage from './components/Groups/GroupsPage';
+import UpdatePrompt from './components/Layout/UpdatePrompt';
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -54,6 +55,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <DataProvider>
+            <UpdatePrompt />
             <AppContent />
           </DataProvider>
         </ToastProvider>
