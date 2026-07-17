@@ -9,9 +9,9 @@ export function setToken(token) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function tryFetchAPI(path, opts) {
+export async function tryFetchAPI(path, opts, timeoutMs = 15000) {
   const c = new AbortController();
-  const id = setTimeout(() => c.abort(), 5000);
+  const id = setTimeout(() => c.abort(), timeoutMs);
   try {
     const r = await fetch(path, { ...opts, signal: c.signal });
     clearTimeout(id);
@@ -22,6 +22,11 @@ export async function tryFetchAPI(path, opts) {
     return null;
   }
 }
+
+// Free-tier hosting (Render) spins the server down after ~15min idle and can take
+// 30-60s to wake back up on the next request. Auth requests get a longer timeout
+// than the default so that cold start doesn't look like a failure.
+const COLD_START_TIMEOUT_MS = 45000;
 
 export function authHeaders() {
   const t = getToken();
@@ -35,12 +40,13 @@ export async function login(username, password) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
-  });
+  }, COLD_START_TIMEOUT_MS);
   if (r && r.ok) {
     setToken(r.token);
     return { success: true, user: r.user };
   }
-  return { success: false, error: r ? r.error : 'Server error' };
+  if (r) return { success: false, error: r.error };
+  return { success: false, error: "Couldn't reach the server — it may be waking up (can take up to a minute on first use). Please try again shortly.", isConnectionIssue: true };
 }
 
 export async function register(username, email, password) {
@@ -48,27 +54,71 @@ export async function register(username, email, password) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password })
-  });
+  }, COLD_START_TIMEOUT_MS);
   if (r && r.ok) {
     setToken(r.token);
     return { success: true, user: r.user };
   }
-  return { success: false, error: r ? r.error : 'Server error' };
+  if (r) return { success: false, error: r.error };
+  return { success: false, error: "Couldn't reach the server — it may be waking up (can take up to a minute on first use). Please try again shortly.", isConnectionIssue: true };
 }
 
 export function logout() {
   setToken(null);
 }
 
-export async function checkAuth() {
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+// Restores a session instantly from the stored JWT itself, with no network round
+// trip — the token already carries username/role, so login state doesn't need to
+// wait on (or depend on the success of) a server request. Clears the token only if
+// it's missing/malformed or genuinely expired per its own `exp` claim.
+export function getCachedUser() {
   const t = getToken();
   if (!t) return null;
-  const r = await tryFetchAPI('/api/auth/me', {
-    headers: { Authorization: 'Bearer ' + t }
-  });
-  if (r && r.ok) return r.user;
-  setToken(null);
-  return null;
+  const payload = decodeJwtPayload(t);
+  if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+    setToken(null);
+    return null;
+  }
+  return { username: payload.username, role: payload.role, email: '', profilePicture: '' };
+}
+
+// Background profile refresh (real email/avatar, since the token doesn't carry those).
+// Returns: the full user object on success, `null` if the server explicitly rejected
+// the token (401 — genuinely logged out), or `undefined` if it simply couldn't be
+// reached in time (e.g. Render cold start) — callers should keep the existing
+// session in that case rather than treating it as a logout.
+export async function refreshProfile() {
+  const t = getToken();
+  if (!t) return null;
+  try {
+    const c = new AbortController();
+    const id = setTimeout(() => c.abort(), COLD_START_TIMEOUT_MS);
+    const r = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + t }, signal: c.signal });
+    clearTimeout(id);
+    if (r.status === 401) {
+      setToken(null);
+      return null;
+    }
+    if (r.ok) {
+      const data = await r.json();
+      if (data && data.ok) return data.user;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // Load defaults — server returns { challenges: [...], nextChallengeId }
