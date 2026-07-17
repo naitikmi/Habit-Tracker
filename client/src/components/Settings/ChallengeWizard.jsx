@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../contexts/DataContext';
-import { saveDefaultsToServer, saveUserChallenges } from '../../utils/api';
+import { saveDefaultsToServer, saveUserChallenges, saveGroupChallenge } from '../../utils/api';
 import { todayStr, COLORS } from '../../utils/helpers';
 import { useToast } from '../Layout/Toast';
 
@@ -12,11 +12,11 @@ function uid() {
   });
 }
 
-export default function ChallengeWizard({ editChallenge, source, onCancel }) {
+export default function ChallengeWizard({ editChallenge, source, groupId, onCancel, onSaved }) {
   const { defaultsData, setDefaultsData, userChallengesData, setUserChallengesData, refreshData } = useData();
   const { showToast } = useToast();
 
-  const [name, setName] = useState(editChallenge ? editChallenge.name : 'My 30-Day Challenge');
+  const [name, setName] = useState(editChallenge ? editChallenge.name : (source === 'group' ? 'Tribe Challenge' : 'My 30-Day Challenge'));
   const [days, setDays] = useState(editChallenge ? editChallenge.days : 30);
   const [startDate, setStartDate] = useState(editChallenge ? editChallenge.startDate : todayStr());
   const [habits, setHabits] = useState([]);
@@ -66,20 +66,31 @@ export default function ChallengeWizard({ editChallenge, source, onCancel }) {
       });
     }
 
-    const store = source === 'user' ? userChallengesData : defaultsData;
-    let target = store;
-    if (!target) {
-      target = { challenges: [], activeChallengeId: null };
-    }
-    if (!target.challenges) target.challenges = [];
-
-    const colorIdx = habitList.length;
     const finalHabits = habitList.map((h, i) => ({
       id: i + 1,
       name: h.name,
       maxPoints: h.maxPoints,
       color: COLORS[i % COLORS.length]
     }));
+
+    if (source === 'group') {
+      const result = await saveGroupChallenge(groupId, { name: name.trim(), days, startDate, habits: finalHabits });
+      if (result) {
+        showToast(editChallenge ? 'Challenge updated!' : 'Challenge created!');
+        if (onSaved) onSaved(result);
+        onCancel();
+      } else {
+        showToast('Failed to save challenge');
+      }
+      return;
+    }
+
+    const store = source === 'user' ? userChallengesData : defaultsData;
+    let target = store;
+    if (!target) {
+      target = { challenges: [], activeChallengeId: null };
+    }
+    if (!target.challenges) target.challenges = [];
 
     if (editChallenge) {
       editChallenge.name = name.trim();
@@ -114,7 +125,9 @@ export default function ChallengeWizard({ editChallenge, source, onCancel }) {
   };
 
   const isEdit = !!editChallenge;
-  const title = isEdit ? 'Edit Challenge' : (source === 'user' ? 'Create My Challenge' : 'Create Default Challenge');
+  const title = isEdit
+    ? 'Edit Challenge'
+    : source === 'user' ? 'Create My Challenge' : source === 'group' ? 'Create Tribe Challenge' : 'Create Default Challenge';
 
   return (
     <div className="wizard">

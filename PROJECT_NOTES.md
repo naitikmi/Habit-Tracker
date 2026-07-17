@@ -2,7 +2,7 @@
 
 Living documentation of the codebase, generated from a full source read-through plus a hands-on walkthrough of the running app as both an **admin** account (`naitikmishra`) and a fresh **regular user** account (`testuser1`). Update this file as the app evolves — it's meant to be the single place that explains how everything fits together and what's known to be broken.
 
-Last verified: 2026-07-17 (bug fixes applied and re-verified live, see §8; local dev now connects to the real production database via `.env` + `dotenv`, see §9; ownership-based visibility + expiry filtering + admin's full ended-challenges inventory + Follow model with dropdown auto-follow + centralized expiry auto-switch shipped, see §7; converted to an installable PWA with offline app-shell support, see §10; fixed a real bug where group owners could never manage their own group, and renamed Groups → Habit Tribe, see §11; fixed sessions being wiped by transient server errors/Render cold starts, see §12).
+Last verified: 2026-07-17 (bug fixes applied and re-verified live, see §8; local dev now connects to the real production database via `.env` + `dotenv`, see §9; ownership-based visibility + expiry filtering + admin's full ended-challenges inventory + Follow model with dropdown auto-follow + centralized expiry auto-switch shipped, see §7; converted to an installable PWA with offline app-shell support, see §10; fixed a real bug where group owners could never manage their own group, and renamed Groups → Habit Tribe, see §11; fixed sessions being wiped by transient server errors/Render cold starts, see §12; group challenge creation now reuses the same unlimited-habits wizard as personal/default challenges, see §13).
 
 ---
 
@@ -345,3 +345,18 @@ Old `client/src/utils/api.js`: `checkAuth()` called `GET /api/auth/me` with a **
 
 ### 12c. Verified live, both directions
 Logged in normally, then killed just the Express backend process (port 3000) while leaving Vite running, confirmed `/api/auth/me` genuinely failed (proxy 500), reloaded the page, and the user **stayed logged in** — the app shell rendered normally (data-dependent bits correctly showed empty/unavailable, only auth state was being tested) and `localStorage`'s token was confirmed still present via direct inspection, not just visual impression. Separately confirmed the fix doesn't paper over real invalidity: crafted a token with a valid-looking, unexpired payload but a garbage signature, reloaded — `getCachedUser()` optimistically showed the app for a moment, then `refreshProfile()`'s 401 from the real server correctly signed the user back out and cleared the token, confirmed via the same direct `localStorage` check.
+
+---
+
+## 13. Group challenge creation reuses the personal-challenge wizard (2026-07-17)
+
+Reported as: "make the same flow as we create challenge in profile, do not restrict the count to four only." `GroupsPage.jsx` had its own hand-rolled challenge form, entirely separate from `ChallengeWizard.jsx` (used by both Default and My Challenges in Settings) — a native `<form>` with a **hardcoded `[1,2,3,4].map(...)`** of exactly four habit-name inputs, no add/remove affordance, so a group challenge could never have more than 4 habits (extra ones simply had nowhere to go) and blank ones among the four were silently dropped rather than validated.
+
+Rather than rebuild the same add/remove-habit UX a second time, `ChallengeWizard.jsx` now accepts `source="group"` directly:
+- New props: `groupId` (which group to save against) and `onSaved` (callback with the saved challenge, since group challenges don't live in `defaultsData`/`userChallengesData` the way default/user ones do).
+- `handleSave` branches early for `source === 'group'`: calls `saveGroupChallenge(groupId, {name, days, startDate, habits})` (the existing `POST /groups/:id/challenge` endpoint, unchanged) instead of the array-replace logic (`saveUserChallenges`/`saveDefaultsToServer`) the other two sources use — group challenges were never part of that array/`activeChallengeId` model to begin with.
+- Habit list management (`addHabit`/`removeHabit`, the dynamic `habits` state array) is exactly the shared code default/user challenges already used — no new logic, no new cap.
+
+`GroupsPage.jsx`: removed the entire `handleCreateChallenge` handler and the fixed-4 `<form>`, replaced with `<ChallengeWizard source="group" groupId={selectedGroup._id} editChallenge={groupChallenge} onCancel={...} onSaved={...} />` at the same spot in the layout (`.wizard`'s CSS is a plain in-flow card, not an overlay, so it drops in without layout changes). Also removed an already-dead `COLORS` import found unused in the same file while in there.
+
+**Verified live**: opened the real group "Challenge creation discussion" (owned by `anshul`, edited as admin), which had an existing 2-habit challenge. Edited it through the new wizard, clicked "+ Add Habit" three times to reach 5, filled in the 3 new names, saved — toast confirmed "Challenge updated!", the card showed "5 habits · 5 days", and reopening Edit showed all 5 names correctly pre-filled (`Reading, Writing, Habit Three, Habit Four, Habit Five`). Cross-checked directly against `GET /api/groups/:id/challenge` to confirm the 5 habits are genuinely persisted server-side, not just reflected in stale client state.

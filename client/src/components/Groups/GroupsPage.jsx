@@ -4,10 +4,10 @@ import { useData } from '../../contexts/DataContext';
 import { useToast } from '../Layout/Toast';
 import {
   loadGroups, createGroup, getGroup, addGroupMembers, removeGroupMember,
-  getGroupChallenge, saveGroupChallenge, sendGroupMessage, loadGroupMessages,
+  getGroupChallenge, sendGroupMessage, loadGroupMessages,
   deleteGroup, loadDiscoverableGroups, joinGroup, leaveGroup
 } from '../../utils/api';
-import { COLORS } from '../../utils/helpers';
+import ChallengeWizard from '../Settings/ChallengeWizard';
 
 export default function GroupsPage() {
   const { user } = useAuth();
@@ -133,33 +133,6 @@ export default function GroupsPage() {
     }
   };
 
-  const handleCreateChallenge = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const name = form.name.value.trim();
-    const days = Number(form.days.value);
-    const startDate = form.startDate.value;
-    if (!name || !days || !startDate) { showToast('Fill all fields'); return; }
-
-    const habitInputs = form.querySelectorAll('.gh-habit-input');
-    const habits = [];
-    for (const inp of habitInputs) {
-      const hName = inp.value.trim();
-      if (hName) habits.push({ name: hName, maxPoints: 10 });
-    }
-    if (!habits.length) { showToast('Add at least one habit'); return; }
-
-    const result = await saveGroupChallenge(selectedGroup._id, { name, days, startDate, habits });
-    if (result) {
-      setGroupChallenge(result);
-      setShowChallengeForm(false);
-      showToast('Challenge created!');
-      refreshData();
-    } else {
-      showToast('Failed to create challenge');
-    }
-  };
-
   const isCreator = selectedGroup && String(selectedGroup.createdBy?._id || selectedGroup.createdBy) === String(user._id);
   const isAdmin = user?.role === 'admin';
 
@@ -224,19 +197,13 @@ export default function GroupsPage() {
         </div>
 
         {showChallengeForm && (
-          <form className="gp-challenge-form" onSubmit={handleCreateChallenge}>
-            <input name="name" defaultValue={groupChallenge?.name || ''} placeholder="Challenge name" required />
-            <input name="days" type="number" defaultValue={groupChallenge?.days || 30} min="1" placeholder="Duration (days)" required />
-            <input name="startDate" type="date" defaultValue={groupChallenge?.startDate || new Date().toISOString().slice(0, 10)} required />
-            <div className="gp-habits-list">
-              <label>Habits:</label>
-              {[1, 2, 3, 4].map(i => (
-                <input key={i} className="gh-habit-input" defaultValue={groupChallenge?.habits?.[i - 1]?.name || ''} placeholder={'Habit ' + i} />
-              ))}
-            </div>
-            <button type="submit">{groupChallenge ? 'Update' : 'Create'}</button>
-            <button type="button" onClick={() => setShowChallengeForm(false)}>Cancel</button>
-          </form>
+          <ChallengeWizard
+            source="group"
+            groupId={selectedGroup._id}
+            editChallenge={groupChallenge}
+            onCancel={() => setShowChallengeForm(false)}
+            onSaved={(result) => { setGroupChallenge(result); refreshData(); }}
+          />
         )}
 
         <div className="gp-messages">
