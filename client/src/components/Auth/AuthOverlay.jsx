@@ -9,6 +9,7 @@ export default function AuthOverlay() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -33,8 +34,8 @@ export default function AuthOverlay() {
     setLoading(true);
     setError('');
     const result = isRegister
-      ? await registerUser(username.trim(), email.trim(), password)
-      : await loginUser(username.trim(), password);
+      ? await registerUser(username.trim(), email.trim(), password, remember)
+      : await loginUser(username.trim(), password, remember);
     setLoading(false);
     if (!result.success) {
       setError(result.error || 'Server error');
@@ -107,6 +108,14 @@ export default function AuthOverlay() {
             )}
           </div>
         )}
+        <label className="auth-remember">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={e => setRemember(e.target.checked)}
+          />
+          Keep me signed in on this device
+        </label>
         <button className="auth-btn primary" onClick={handleSubmit} disabled={loading}>
           {loading ? 'Please wait...' : isRegister ? 'Create Account' : 'Sign In'}
         </button>

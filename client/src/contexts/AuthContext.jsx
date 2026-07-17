@@ -25,14 +25,14 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  const loginUser = useCallback(async (username, password) => {
-    const result = await apiLogin(username, password);
+  const loginUser = useCallback(async (username, password, remember = true) => {
+    const result = await apiLogin(username, password, remember);
     if (result.success) setUser(result.user);
     return result;
   }, []);
 
-  const registerUser = useCallback(async (username, email, password) => {
-    const result = await apiRegister(username, email, password);
+  const registerUser = useCallback(async (username, email, password, remember = true) => {
+    const result = await apiRegister(username, email, password, remember);
     if (result.success) setUser(result.user);
     return result;
   }, []);

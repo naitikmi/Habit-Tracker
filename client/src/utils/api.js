@@ -1,12 +1,18 @@
 const TOKEN_KEY = 'challengeToken';
 
+// "Keep me signed in" unchecked -> token lives in sessionStorage only, so it's
+// gone once the browser/tab closes. Checked (default) -> localStorage, so the
+// 30-day JWT keeps the user signed in across restarts, as before.
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 }
 
-export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+export function setToken(token, remember = true) {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  if (token) {
+    (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+  }
 }
 
 export async function tryFetchAPI(path, opts, timeoutMs = 15000) {
@@ -35,28 +41,28 @@ export function authHeaders() {
     : { 'Content-Type': 'application/json' };
 }
 
-export async function login(username, password) {
+export async function login(username, password, remember = true) {
   const r = await tryFetchAPI('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
   }, COLD_START_TIMEOUT_MS);
   if (r && r.ok) {
-    setToken(r.token);
+    setToken(r.token, remember);
     return { success: true, user: r.user };
   }
   if (r) return { success: false, error: r.error };
   return { success: false, error: "Couldn't reach the server — it may be waking up (can take up to a minute on first use). Please try again shortly.", isConnectionIssue: true };
 }
 
-export async function register(username, email, password) {
+export async function register(username, email, password, remember = true) {
   const r = await tryFetchAPI('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password })
   }, COLD_START_TIMEOUT_MS);
   if (r && r.ok) {
-    setToken(r.token);
+    setToken(r.token, remember);
     return { success: true, user: r.user };
   }
   if (r) return { success: false, error: r.error };

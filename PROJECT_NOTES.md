@@ -2,7 +2,7 @@
 
 Living documentation of the codebase, generated from a full source read-through plus a hands-on walkthrough of the running app as both an **admin** account (`naitikmishra`) and a fresh **regular user** account (`testuser1`). Update this file as the app evolves — it's meant to be the single place that explains how everything fits together and what's known to be broken.
 
-Last verified: 2026-07-17 (bug fixes applied and re-verified live, see §8; local dev now connects to the real production database via `.env` + `dotenv`, see §9; ownership-based visibility + expiry filtering + admin's full ended-challenges inventory + Follow model with dropdown auto-follow + centralized expiry auto-switch shipped, see §7; converted to an installable PWA with offline app-shell support, see §10; fixed a real bug where group owners could never manage their own group, and renamed Groups → Habit Tribe, see §11; fixed sessions being wiped by transient server errors/Render cold starts, see §12; group challenge creation now reuses the same unlimited-habits wizard as personal/default challenges, see §13).
+Last verified: 2026-07-17 (bug fixes applied and re-verified live, see §8; local dev now connects to the real production database via `.env` + `dotenv`, see §9; ownership-based visibility + expiry filtering + admin's full ended-challenges inventory + Follow model with dropdown auto-follow + centralized expiry auto-switch shipped, see §7; converted to an installable PWA with offline app-shell support, see §10; fixed a real bug where group owners could never manage their own group, and renamed Groups → Habit Tribe, see §11; fixed sessions being wiped by transient server errors/Render cold starts, see §12; group challenge creation now reuses the same unlimited-habits wizard as personal/default challenges, see §13; added an explicit "Keep me signed in" checkbox on login/register controlling localStorage vs sessionStorage token persistence, see §14).
 
 ---
 
@@ -358,5 +358,20 @@ Rather than rebuild the same add/remove-habit UX a second time, `ChallengeWizard
 - Habit list management (`addHabit`/`removeHabit`, the dynamic `habits` state array) is exactly the shared code default/user challenges already used — no new logic, no new cap.
 
 `GroupsPage.jsx`: removed the entire `handleCreateChallenge` handler and the fixed-4 `<form>`, replaced with `<ChallengeWizard source="group" groupId={selectedGroup._id} editChallenge={groupChallenge} onCancel={...} onSaved={...} />` at the same spot in the layout (`.wizard`'s CSS is a plain in-flow card, not an overlay, so it drops in without layout changes). Also removed an already-dead `COLORS` import found unused in the same file while in there.
+
+---
+
+## 14. Explicit "Keep me signed in" checkbox on login/register (2026-07-17)
+
+Reported as: "a button be there if i do not want to login again and again a day." The JWT itself already carries a 30-day expiry (`server/routes/auth.js`), and §12 already fixed the bug where a *valid* token got wiped by transient network errors — but there was never an actual visible control letting the user choose persistent-vs-session login, and no way to opt out of staying signed in on a shared device.
+
+Added a real "Remember me" style toggle rather than just cosmetic UI:
+- **`client/src/utils/api.js`**: `getToken()` now reads from `localStorage` *or* `sessionStorage` (whichever has it). `setToken(token, remember=true)` clears both first, then writes to `localStorage` when `remember` is true (persists across browser restarts, same as the existing default behavior) or `sessionStorage` when false (cleared the moment the browser/tab is closed). `login()`/`register()` both take a new `remember=true` param and pass it through to `setToken`.
+- **`AuthContext.jsx`**: `loginUser`/`registerUser` accept and forward the same `remember` param.
+- **`AuthOverlay.jsx`**: new `remember` state (default `true`, checked), a checkbox labeled "Keep me signed in on this device" between the password field and the submit button, passed through to `loginUser`/`registerUser` on submit. Applies to both sign-in and registration.
+- **`App.css`**: `.auth-remember` styles for the new checkbox row (`accent-color: var(--accent)` so the check mark matches the theme).
+
+### 14a. Verified live, both directions
+With the checkbox **unchecked**, logged in as `naitikmishra` — confirmed via direct storage inspection that the token landed in `sessionStorage` only (`localStorage` stayed `null`). Cleared `sessionStorage` and reloaded (simulating closing the browser) — correctly bounced back to the login screen. With the checkbox **checked** (the default on a fresh page load), logged in again — confirmed the token went to `localStorage` only (`sessionStorage` stayed empty), matching the pre-existing persistent behavior.
 
 **Verified live**: opened the real group "Challenge creation discussion" (owned by `anshul`, edited as admin), which had an existing 2-habit challenge. Edited it through the new wizard, clicked "+ Add Habit" three times to reach 5, filled in the 3 new names, saved — toast confirmed "Challenge updated!", the card showed "5 habits · 5 days", and reopening Edit showed all 5 names correctly pre-filled (`Reading, Writing, Habit Three, Habit Four, Habit Five`). Cross-checked directly against `GET /api/groups/:id/challenge` to confirm the 5 habits are genuinely persisted server-side, not just reflected in stale client state.
