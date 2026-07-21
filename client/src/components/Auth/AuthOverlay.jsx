@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { validatePassword } from '../../utils/helpers';
+
+// Render's free tier spins the server down after ~15min idle; waking it back up
+// can take up to a minute. Below this, the button just says "Signing in...".
+const WAKING_HINT_DELAY_MS = 4000;
 
 export default function AuthOverlay() {
   const { loginUser, registerUser } = useAuth();
@@ -12,6 +16,8 @@ export default function AuthOverlay() {
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [waking, setWaking] = useState(false);
+  const wakingTimer = useRef(null);
 
   const pwValid = password ? validatePassword(password) : null;
 
@@ -33,9 +39,13 @@ export default function AuthOverlay() {
     }
     setLoading(true);
     setError('');
+    setWaking(false);
+    wakingTimer.current = setTimeout(() => setWaking(true), WAKING_HINT_DELAY_MS);
     const result = isRegister
       ? await registerUser(username.trim(), email.trim(), password, remember)
       : await loginUser(username.trim(), password, remember);
+    clearTimeout(wakingTimer.current);
+    setWaking(false);
     setLoading(false);
     if (!result.success) {
       setError(result.error || 'Server error');
@@ -117,8 +127,15 @@ export default function AuthOverlay() {
           Keep me signed in on this device
         </label>
         <button className="auth-btn primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? 'Please wait...' : isRegister ? 'Create Account' : 'Sign In'}
+          {loading
+            ? <><span className="auth-spinner" />{waking ? 'Waking up server...' : 'Please wait...'}</>
+            : isRegister ? 'Create Account' : 'Sign In'}
         </button>
+        {waking && (
+          <div className="auth-waking-hint">
+            Free hosting spins down when idle — this can take up to a minute on the first try.
+          </div>
+        )}
         <div className="auth-error">{error}</div>
         <div className="auth-toggle" onClick={toggleMode}>
           {isRegister

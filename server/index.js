@@ -20,6 +20,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
+// Lightweight, unauthenticated endpoint for external keep-alive pings (e.g. UptimeRobot)
+// to hit periodically so Render's free tier doesn't spin the service down when idle.
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);

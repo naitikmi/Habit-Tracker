@@ -295,6 +295,10 @@ body{
 .auth-box .admin-note{font-size:10px;color:var(--text3);margin-top:8px}
 .auth-box .auth-remember{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin:2px 0 4px;cursor:pointer;text-align:left;user-select:none}
 .auth-box .auth-remember input{width:auto;margin:0;accent-color:var(--accent);cursor:pointer}
+.auth-box .auth-btn.primary{display:flex;align-items:center;justify-content:center;gap:8px}
+.auth-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:authSpin .7s linear infinite}
+@keyframes authSpin{to{transform:rotate(360deg)}}
+.auth-waking-hint{font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4}
 .auth-box .pw-input-wrap{position:relative;margin-bottom:10px}
 .auth-box .pw-input-wrap input{margin-bottom:0;padding-right:44px}
 .auth-box .pw-toggle{position:absolute;right:4px;top:2px;bottom:2px;border:none;background:transparent;color:var(--text3);font-size:18px;cursor:pointer;padding:0 10px;transition:.2s;border-radius:var(--radius-sm);display:flex;align-items:center}
